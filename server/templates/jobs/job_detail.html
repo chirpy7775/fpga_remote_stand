@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Задача {{ object.original_filename }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start;">
+        <div>
+            <h1>{{ object.original_filename }}</h1>
+            <div class="muted">ID: {{ object.id }}</div>
+            {% if object.claimed_by %}
+                <div><strong>Подтверждение:</strong> файл получен агентом {{ object.claimed_by }}.</div>
+            {% endif %}
+        </div>
+        <span class="status {{ object.status }}">{{ object.get_status_display }}</span>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Метаданные</h2>
+    <div class="stack">
+        <div><strong>Создана:</strong> {{ object.created_at|date:"d.m.Y H:i:s" }}</div>
+        <div><strong>Старт:</strong> {{ object.started_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
+        <div><strong>Завершение:</strong> {{ object.finished_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
+        <div><strong>Агент:</strong> {{ object.claimed_by|default:"—" }}</div>
+        <div><strong>Таймаут:</strong> {{ object.deadline_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
+        {% if object.error_message %}
+            <div><strong>Ошибка:</strong> {{ object.error_message }}</div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="card">
+    <h2>Лог выполнения</h2>
+    {% if object.execution_log %}
+        <pre>{{ object.execution_log }}</pre>
+    {% else %}
+        <p class="muted">Лог пока отсутствует.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Видео</h2>
+    {% if object.result_video %}
+        <video controls style="max-width:100%; border-radius:14px;">
+            <source src="{{ object.result_video.url }}">
+            Браузер не смог воспроизвести файл. Можно <a href="{{ object.result_video.url }}">скачать результат</a>.
+        </video>
+        <p><a href="{{ object.result_video.url }}">Скачать результат</a></p>
+    {% else %}
+        <p class="muted">Видео пока отсутствует.</p>
+    {% endif %}
+</section>
+{% endblock %}

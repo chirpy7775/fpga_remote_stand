@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Загрузка прошивки{% endblock %}
+
+{% block content %}
+<div class="grid two">
+    <section class="card">
+        <h1>Загрузка прошивки</h1>
+        <p class="muted">Логин не нужен. Выберите файл, загрузите его и затем откройте карточку задачи.</p>
+        <form method="post" enctype="multipart/form-data" class="stack">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Загрузить и поставить в очередь</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>История задач</h2>
+        {% if jobs %}
+            <table>
+                <thead>
+                <tr>
+                    <th>Файл</th>
+                    <th>Статус</th>
+                    <th>Создана</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for job in jobs %}
+                    <tr>
+                        <td>
+                            <strong>{{ job.original_filename }}</strong>
+                            {% if job.queue_position %}
+                                <div class="muted">Позиция в очереди: {{ job.queue_position }}</div>
+                            {% endif %}
+                            {% if job.claimed_by %}
+                                <div class="muted">Файл уже получен агентом: {{ job.claimed_by }}</div>
+                            {% endif %}
+                        </td>
+                        <td><span class="status {{ job.status }}">{{ job.get_status_display }}</span></td>
+                        <td>{{ job.created_at|date:"d.m.Y H:i" }}</td>
+                        <td><a href="{{ job.get_absolute_url }}">Открыть</a></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">Пока задач нет.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
