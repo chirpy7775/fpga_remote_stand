@@ -6,7 +6,14 @@
 <div class="grid two">
     <section class="card">
         <h1>Загрузка прошивки</h1>
-        <p class="muted">Логин не нужен. Выберите файл, загрузите его и затем откройте карточку задачи.</p>
+        {% if request.user.is_authenticated %}
+            <p class="muted">Вы вошли в систему. Ваши задачи обрабатываются с приоритетом.</p>
+        {% else %}
+            <p class="muted">
+                Вы в гостевом режиме. История сохраняется только в cookie текущего браузера.
+                Для постоянной истории и приоритета войдите в аккаунт.
+            </p>
+        {% endif %}
         <form method="post" enctype="multipart/form-data" class="stack">
             {% csrf_token %}
             {{ form.as_p }}

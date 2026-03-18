@@ -9,6 +9,8 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+PUBLIC_OWNER_USERNAME = "public-upload"
+
 
 def generate_agent_token() -> str:
     return secrets.token_hex(24)
@@ -82,9 +84,18 @@ class Job(TimeStampedModel):
     def queue_position(self) -> int | None:
         if self.status != self.Status.WAITING:
             return None
-        return (
-            Job.objects.filter(status=self.Status.WAITING, created_at__lt=self.created_at).count() + 1
-        )
+        guest_owner_q = models.Q(owner__username=PUBLIC_OWNER_USERNAME)
+        waiting_jobs = Job.objects.filter(status=self.Status.WAITING)
+        is_guest_job = self.owner.username == PUBLIC_OWNER_USERNAME
+
+        if is_guest_job:
+            ahead_count = waiting_jobs.filter(
+                ~guest_owner_q | (guest_owner_q & models.Q(created_at__lt=self.created_at))
+            ).count()
+        else:
+            ahead_count = waiting_jobs.filter(~guest_owner_q, created_at__lt=self.created_at).count()
+
+        return ahead_count + 1
 
     @property
     def is_expired(self) -> bool:

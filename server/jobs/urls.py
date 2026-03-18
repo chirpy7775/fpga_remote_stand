@@ -5,15 +5,19 @@ from .views import (
     AgentJobDetailView,
     AgentJobResultView,
     AgentNextJobView,
+    ContinueAsGuestView,
     DashboardView,
     HomeView,
     JobDetailView,
+    StartView,
 )
 
 app_name = "jobs"
 
 urlpatterns = [
-    path("", DashboardView.as_view(), name="home"),
+    path("", HomeView.as_view(), name="home"),
+    path("start/", StartView.as_view(), name="start"),
+    path("continue-as-guest/", ContinueAsGuestView.as_view(), name="continue-as-guest"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("jobs/<uuid:pk>/", JobDetailView.as_view(), name="job-detail"),
     path("agent/api/jobs/claim/", AgentNextJobView.as_view(), name="agent-next-job"),
