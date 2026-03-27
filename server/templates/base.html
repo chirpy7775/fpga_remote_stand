@@ -39,19 +39,17 @@
             text-decoration: none;
             margin-right: 12px;
         }
-        .nav .inline-form {
-            display: inline;
-        }
-        .nav .link-button {
+        .logout-btn {
             background: none;
             border: none;
-            color: var(--text);
-            cursor: pointer;
-            margin-right: 12px;
             padding: 0;
+            margin: 0;
+            color: var(--text);
+            font: inherit;
+            cursor: pointer;
             text-decoration: none;
         }
-        .nav .link-button:hover {
+        .logout-btn:hover {
             text-decoration: underline;
         }
         .card {
@@ -143,16 +141,15 @@
 <body>
 <div class="shell">
     <div class="nav">
-        <div><a href="{% url 'jobs:home' %}"><strong>Remote stand</strong></a></div>
+        <div><a href="{% url 'jobs:dashboard' %}"><strong>Remote stand</strong></a></div>
         <div>
             {% if request.user.is_authenticated %}
                 <span class="muted">{{ request.user.username }}</span>
-                <form method="post" action="{% url 'logout' %}" class="inline-form">
+                <form method="post" action="{% url 'logout' %}" style="display:inline;">
                     {% csrf_token %}
-                    <button type="submit" class="link-button">Выйти</button>
+                    <button type="submit" class="logout-btn">Выйти</button>
                 </form>
             {% else %}
-                <a href="{% url 'jobs:start' %}">Начать</a>
                 <a href="{% url 'login' %}">Войти</a>
                 <a href="{% url 'register' %}">Регистрация</a>
             {% endif %}
