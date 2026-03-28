@@ -74,13 +74,16 @@ class AgentAuthMixin:
         return super().dispatch(request, *args, **kwargs)
 
     @staticmethod
-    def authenticate(request: HttpRequest) -> Agent | None:
+    def authenticate(request: HttpRequest) -> Agent:
         header = request.headers.get("Authorization", "")
         prefix = "Token "
         if header.startswith(prefix):
             token = header[len(prefix):].strip()
             if token:
-                return Agent.objects.filter(token=token, is_active=True).first()
+                agent = Agent.objects.filter(token=token, is_active=True).first()
+                if agent is not None:
+                    return agent
+        # Нет токена или токен не найден — используем local-agent
         agent, _ = Agent.objects.get_or_create(name="local-agent")
         return agent
 
