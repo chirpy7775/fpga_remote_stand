@@ -3,7 +3,7 @@
 Минималистичный каркас проекта для “удалённого стенда” с двумя частями:
 
 - `server/` — Django-сервер с кабинетом пользователя и API для агента;
-- `agent/` — отдельный исполнитель, который забирает задачу, скачивает прошивку, вызывает заглушки железа и отправляет результат обратно.
+- `agent/` — отдельный исполнитель, который забирает задачу, скачивает прошивку, запускает либо реальную интеграцию с железом, либо заглушки, и отправляет результат обратно.
 
 ## Что уже есть
 
@@ -18,7 +18,9 @@
   - посмотреть метаданные задачи;
 - защита от двойной выдачи одной задачи;
 - лимит времени выполнения на стороне сервера;
-- агентская часть с чистыми заглушками вместо реального OpenOCD/камеры.
+- агентская часть с двумя режимами:
+  - обычный запуск для работы с реальным OpenOCD и камерой;
+  - `--stub-hardware` для разработки без платы.
 
 ## Структура
 
@@ -36,21 +38,33 @@ remote-stand-skeleton/
 
 ```bash
 cd server
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver 127.0.0.1:8000
 ```
 
-Потом агент в отдельном терминале:
+Потом агент в отдельном терминале.
+
+Для разработки без платы:
 
 ```bash
 cd agent
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m remote_agent --once
+python -m remote_agent --stub-hardware
+```
+
+Для запуска с реальным железом:
+
+```bash
+cd agent
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m remote_agent
 ```
 
 После этого:
@@ -61,12 +75,13 @@ python -m remote_agent --once
 4. запустить агент;
 5. дождаться результата.
 
-## Что специально оставлено заглушками
+## Режимы агента
 
-В `agent/remote_agent/hardware.py` находятся классы-заглушки:
+В `agent/remote_agent/hardware.py` есть оба варианта:
 
 - `ProgrammerStub`
 - `CameraStub`
-- `HardwareExecutor`
+- `RealProgrammer`
+- `RealCamera`
 
-Именно их удобно заменить на реальную работу с OpenOCD, камерой и последующей обработкой.
+Флаг `--stub-hardware` заставляет агента использовать `ProgrammerStub` и `CameraStub`, чтобы можно было вести разработку без FPGA-платы и камеры.

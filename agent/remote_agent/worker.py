@@ -27,22 +27,15 @@ class AgentWorker:
             except ServerError as exc:
                 logger.warning("[AGENT] Не удалось получить задачу: %s", exc)
                 print(f"[AGENT] Сервер недоступен: {exc}")
-                if self.config.run_once:
-                    return
                 print(f"[AGENT] Повтор через {self.config.poll_interval} сек...")
                 time.sleep(self.config.poll_interval)
                 continue
 
             if job is None:
-                if self.config.run_once:
-                    return
                 time.sleep(self.config.poll_interval)
                 continue
 
             self._process_job_safe(job)
-
-            if self.config.run_once:
-                return
 
     def _process_job_safe(self, job: RemoteJob) -> None:
         """Выполняет задачу. При любой ошибке логирует и не падает."""

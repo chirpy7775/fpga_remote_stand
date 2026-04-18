@@ -12,7 +12,6 @@ class AgentConfig:
     poll_interval: int = 5
     workspace: Path = Path("workspace")
     timeout_seconds: int = 300
-    run_once: bool = False
 
     @classmethod
     def from_env(cls) -> "AgentConfig":

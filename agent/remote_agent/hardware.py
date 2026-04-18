@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import time
 import subprocess
-import numpy as np
 from pathlib import Path
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .models import ExecutionResult
+
+if TYPE_CHECKING:
+    import numpy as np
 
 try:
     import cv2
@@ -20,7 +22,7 @@ class ProgrammerStub:
         return [
             "[STUB] Programmer invoked.",
             f"[STUB] Firmware path: {firmware_path}",
-            "[STUB] Real programming is not implemented",
+            "[STUB] Прошивка успешно загружена.",
         ]
 
 
@@ -323,6 +325,16 @@ class CameraStub:
     """Заглушка камеры (оставлена для тестов)"""
     def __init__(self) -> None:
         self._video_path: Path | None = None
+
+    def capture(self, video_path: Path, duration_sec: float) -> list[str]:
+        self._video_path = video_path
+        video_path.write_bytes(b"STUB VIDEO PLACEHOLDER\n")
+        return [
+            "[STUB] Camera capture started.",
+            f"[STUB] Target video path: {video_path}",
+            f"[STUB] Simulated capture duration: {duration_sec} sec.",
+            "[STUB] Camera capture stopped.",
+        ]
 
     def start_capture(self, video_path: Path) -> list[str]:
         self._video_path = video_path
