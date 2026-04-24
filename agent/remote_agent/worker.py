@@ -20,22 +20,24 @@ class AgentWorker:
 
     def run(self) -> None:
         self.config.workspace.mkdir(parents=True, exist_ok=True)
+        try:
+            while True:
+                try:
+                    job = self.client.claim_job()
+                except ServerError as exc:
+                    logger.warning("[AGENT] Не удалось получить задачу: %s", exc)
+                    print(f"[AGENT] Сервер недоступен: {exc}")
+                    print(f"[AGENT] Повтор через {self.config.poll_interval} сек...")
+                    time.sleep(self.config.poll_interval)
+                    continue
 
-        while True:
-            try:
-                job = self.client.claim_job()
-            except ServerError as exc:
-                logger.warning("[AGENT] Не удалось получить задачу: %s", exc)
-                print(f"[AGENT] Сервер недоступен: {exc}")
-                print(f"[AGENT] Повтор через {self.config.poll_interval} сек...")
-                time.sleep(self.config.poll_interval)
-                continue
+                if job is None:
+                    time.sleep(self.config.poll_interval)
+                    continue
 
-            if job is None:
-                time.sleep(self.config.poll_interval)
-                continue
-
-            self._process_job_safe(job)
+                self._process_job_safe(job)
+        except KeyboardInterrupt:
+            print("\n[AGENT] Остановка.")
 
     def _process_job_safe(self, job: RemoteJob) -> None:
         """Выполняет задачу. При любой ошибке логирует и не падает."""
@@ -49,7 +51,6 @@ class AgentWorker:
         except Exception as exc:
             logger.error("[AGENT] Неожиданная ошибка при выполнении задачи %s: %s", job.id, exc)
             print(f"[AGENT] Неожиданная ошибка в задаче {job.id}: {exc}")
-            # Пробуем отправить ошибку на сервер
             self._try_submit_error(job, str(exc))
 
     def _process_job(self, job: RemoteJob) -> None:
@@ -64,6 +65,7 @@ class AgentWorker:
             firmware_path=firmware_path,
             workspace=job_workspace,
             timeout_seconds=self.config.timeout_seconds,
+            record_duration_sec=float(self.config.record_duration_sec),
         )
 
         print(f"[AGENT] Отправляю результат задачи {job.id} (статус: {result.status})...")
