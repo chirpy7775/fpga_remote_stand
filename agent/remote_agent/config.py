@@ -9,6 +9,13 @@ from pathlib import Path
 RECORD_DURATION_MIN: int = 1
 RECORD_DURATION_MAX: int = 30
 
+# Настройки логирования с ротацией по размеру файла.
+# LOG_FILE         — путь к лог-файлу (относительный или абсолютный).
+# LOG_MAX_BYTES    — максимальный размер одного файла лога (байт).
+# LOG_BACKUP_COUNT — сколько архивных файлов хранить (.log.1, .log.2, ...).
+LOG_FILE: str = "agent.log"
+LOG_MAX_BYTES: int = 10 * 1024 * 1024   # 10 МБ
+LOG_BACKUP_COUNT: int = 5
 
 @dataclass(slots=True)
 class AgentConfig:

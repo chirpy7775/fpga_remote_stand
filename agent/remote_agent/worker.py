@@ -26,8 +26,8 @@ class AgentWorker:
                     job = self.client.claim_job()
                 except ServerError as exc:
                     logger.warning("[AGENT] Не удалось получить задачу: %s", exc)
-                    print(f"[AGENT] Сервер недоступен: {exc}")
-                    print(f"[AGENT] Повтор через {self.config.poll_interval} сек...")
+                    logger.warning("[AGENT] Сервер недоступен: %s", exc)
+                    logger.info("[AGENT] Повтор через %s сек...", self.config.poll_interval)
                     time.sleep(self.config.poll_interval)
                     continue
 
@@ -37,7 +37,7 @@ class AgentWorker:
 
                 self._process_job_safe(job)
         except KeyboardInterrupt:
-            print("\n[AGENT] Остановка.")
+            logger.info("[AGENT] Остановка.")
 
     def _process_job_safe(self, job: RemoteJob) -> None:
         """Выполняет задачу. При любой ошибке логирует и не падает."""
@@ -47,20 +47,18 @@ class AgentWorker:
             # Сервер упал во время выполнения — задача останется
             # в статусе running до истечения таймаута на сервере
             logger.error("[AGENT] Ошибка связи во время выполнения задачи %s: %s", job.id, exc)
-            print(f"[AGENT] Ошибка связи во время задачи {job.id}: {exc}")
         except Exception as exc:
             logger.error("[AGENT] Неожиданная ошибка при выполнении задачи %s: %s", job.id, exc)
-            print(f"[AGENT] Неожиданная ошибка в задаче {job.id}: {exc}")
             self._try_submit_error(job, str(exc))
 
     def _process_job(self, job: RemoteJob) -> None:
         job_workspace = self.config.workspace / job.id
         firmware_path = job_workspace / job.original_filename
 
-        print(f"[AGENT] Скачиваю прошивку для задачи {job.id}...")
+        logger.info("[AGENT] Скачиваю прошивку для задачи %s...", job.id)
         self.client.download_firmware(job=job, destination=firmware_path)
 
-        print(f"[AGENT] Запускаю выполнение задачи {job.id}...")
+        logger.info("[AGENT] Запускаю выполнение задачи %s...", job.id)
         result = self.executor.run(
             firmware_path=firmware_path,
             workspace=job_workspace,
@@ -68,9 +66,9 @@ class AgentWorker:
             record_duration_sec=float(self.config.record_duration_sec),
         )
 
-        print(f"[AGENT] Отправляю результат задачи {job.id} (статус: {result.status})...")
+        logger.info("[AGENT] Отправляю результат задачи %s (статус: %s)...", job.id, result.status)
         self.client.submit_result(job=job, result=result)
-        print(f"[AGENT] Задача {job.id} завершена.")
+        logger.info("[AGENT] Задача %s завершена.", job.id)
 
     def _try_submit_error(self, job: RemoteJob, error_message: str) -> None:
         """Пробует сообщить серверу об ошибке. Если не получается — молча пропускает."""

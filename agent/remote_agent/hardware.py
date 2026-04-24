@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 import subprocess
 from pathlib import Path
@@ -10,12 +11,15 @@ from .models import ExecutionResult
 if TYPE_CHECKING:
     import numpy as np
 
+logger = logging.getLogger(__name__)
+
 try:
     import cv2
 except ImportError:
     cv2 = None
-    print("Предупреждение: OpenCV (cv2) не установлен. RealCamera будет работать как заглушка.")
-
+    logging.getLogger(__name__).warning(
+        "OpenCV (cv2) не установлен. RealCamera будет работать как заглушка."
+    )
 
 class ProgrammerStub:
     def program(self, firmware_path: Path) -> list[str]:

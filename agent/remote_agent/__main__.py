@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 
 from .api import ServerClient
-from .config import AgentConfig
+from .config import AgentConfig, LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT
 from .env import load_env
 from .hardware import CameraStub, HardwareExecutor, ProgrammerStub
+from .logging_setup import setup_logging
 from .worker import AgentWorker
 
 
@@ -21,6 +22,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     load_env()
+
+    # Логирование настраивается до всего остального, чтобы ни одно сообщение
+    # (включая предупреждение об отсутствии cv2) не было потеряно.
+    setup_logging(
+        log_file=LOG_FILE,
+        max_bytes=LOG_MAX_BYTES,
+        backup_count=LOG_BACKUP_COUNT,
+    )
+
     parser = build_parser()
     args = parser.parse_args()
 
