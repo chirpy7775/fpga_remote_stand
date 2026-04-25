@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import config as app_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -69,3 +70,4 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_REDIRECT_URL = "jobs:dashboard"
 LOGOUT_REDIRECT_URL = "register"
 EXECUTION_TIMEOUT_SECONDS = int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "300"))
+ALLOW_ANON_JOB_SUBMISSION = app_config.ALLOW_ANON_JOB_SUBMISSION

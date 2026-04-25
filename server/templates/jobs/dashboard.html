@@ -8,17 +8,28 @@
         <h1>Загрузка прошивки</h1>
         {% if request.user.is_authenticated %}
             <p class="muted">Вы вошли в систему. Ваши задачи обрабатываются с приоритетом.</p>
-        {% else %}
+        {% elif allow_anonymous_submission %}
             <p class="muted">
                 Вы в гостевом режиме. История сохраняется только в cookie текущего браузера.
                 Для постоянной истории и приоритета войдите в аккаунт.
             </p>
+        {% else %}
+            <p class="muted">
+                Анонимная отправка заданий отключена. Войдите в аккаунт, чтобы продолжить.
+            </p>
         {% endif %}
-        <form method="post" enctype="multipart/form-data" class="stack">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit">Загрузить и поставить в очередь</button>
-        </form>
+        {% if request.user.is_authenticated or allow_anonymous_submission %}
+            <form method="post" enctype="multipart/form-data" class="stack">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit">Загрузить и поставить в очередь</button>
+            </form>
+        {% else %}
+            <p>
+                <a href="{% url 'login' %}">Войти</a> |
+                <a href="{% url 'register' %}">Зарегистрироваться</a>
+            </p>
+        {% endif %}
     </section>
 
     <section class="card">
