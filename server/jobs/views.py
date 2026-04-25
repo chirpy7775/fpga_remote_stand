@@ -26,6 +26,10 @@ GUEST_HISTORY_MAX_ITEMS = 40
 GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
 
 
+def is_guest_submission_enabled() -> bool:
+    return bool(getattr(settings, "ALLOW_ANON_JOB_SUBMISSION", True))
+
+
 def _normalize_job_id(value: str) -> str | None:
     try:
         return str(UUID(value))
@@ -99,9 +103,12 @@ def mark_guest_mode(response: HttpResponse) -> None:
 
 class HomeView(RedirectView):
     def get_redirect_url(self, *args, **kwargs):
+        guest_submission_enabled = is_guest_submission_enabled()
         if self.request.user.is_authenticated:
             return reverse("jobs:dashboard")
-        if self.request.COOKIES.get(GUEST_MODE_COOKIE) == "1" or get_guest_job_ids(self.request):
+        if guest_submission_enabled and (
+            self.request.COOKIES.get(GUEST_MODE_COOKIE) == "1" or get_guest_job_ids(self.request)
+        ):
             return reverse("jobs:dashboard")
         return reverse("jobs:start")
 
@@ -114,11 +121,19 @@ class StartView(TemplateView):
             return redirect("jobs:dashboard")
         return super().dispatch(request, *args, **kwargs)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["allow_anonymous_submission"] = is_guest_submission_enabled()
+        return context
+
 
 class ContinueAsGuestView(View):
     http_method_names = ["post"]
 
     def post(self, request: HttpRequest) -> HttpResponse:
+        if not is_guest_submission_enabled():
+            messages.error(request, "Анонимная отправка заданий отключена.")
+            return redirect("jobs:start")
         response = redirect("jobs:dashboard")
         mark_guest_mode(response)
         return response
@@ -140,10 +155,16 @@ class DashboardView(FormView):
     template_name = "jobs/dashboard.html"
 
     def dispatch(self, request: HttpRequest, *args, **kwargs):
+        if not request.user.is_authenticated and not is_guest_submission_enabled():
+            messages.error(request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
+            return redirect("jobs:start")
         JobService.expire_timed_out_jobs()
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form: JobUploadForm) -> HttpResponse:
+        if not self.request.user.is_authenticated and not is_guest_submission_enabled():
+            messages.error(self.request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
+            return redirect("jobs:start")
         firmware = form.cleaned_data["firmware"]
         is_guest = not self.request.user.is_authenticated
         owner = self.request.user if self.request.user.is_authenticated else JobService.get_public_owner()
@@ -159,6 +180,7 @@ class DashboardView(FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["allow_anonymous_submission"] = is_guest_submission_enabled()
         if self.request.user.is_authenticated:
             jobs = self.request.user.jobs.select_related("claimed_by")
         else:
@@ -174,6 +196,12 @@ class DashboardView(FormView):
 class JobDetailView(DetailView):
     model = Job
     template_name = "jobs/job_detail.html"
+
+    def dispatch(self, request: HttpRequest, *args, **kwargs):
+        if not request.user.is_authenticated and not is_guest_submission_enabled():
+            messages.error(request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
+            return redirect("jobs:start")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         JobService.expire_timed_out_jobs()
