@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from uuid import UUID
 
 from django.conf import settings
@@ -18,6 +19,8 @@ from django.views.generic import DetailView, FormView, RedirectView, TemplateVie
 from .forms import JobUploadForm, RegistrationForm
 from .models import Agent, Job, PUBLIC_OWNER_USERNAME
 from .services import JobCompletion, JobService
+
+logger = logging.getLogger("jobs")
 
 GUEST_MODE_COOKIE = "guest_mode"
 GUEST_JOBS_COOKIE = "guest_jobs"
@@ -45,6 +48,7 @@ def get_guest_job_ids(request: HttpRequest) -> list[str]:
             salt=GUEST_JOBS_COOKIE_SALT,
         )
     except BadSignature:
+        logger.warning("Подпись куки гостевых задач недействительна ip=%s", request.META.get("REMOTE_ADDR"))
         return []
 
     try:
@@ -136,6 +140,7 @@ class ContinueAsGuestView(View):
             return redirect("jobs:start")
         response = redirect("jobs:dashboard")
         mark_guest_mode(response)
+        logger.debug("Гостевой режим активирован ip=%s", request.META.get("REMOTE_ADDR"))
         return response
 
 
@@ -147,6 +152,7 @@ class RegisterView(FormView):
         user = form.save()
         login(self.request, user)
         messages.success(self.request, "Аккаунт создан.")
+        logger.info("Зарегистрирован новый пользователь username=%s", user.username)
         return redirect("jobs:dashboard")
 
 
@@ -170,6 +176,13 @@ class DashboardView(FormView):
         owner = self.request.user if self.request.user.is_authenticated else JobService.get_public_owner()
         job = JobService.create_job(owner=owner, firmware=firmware)
         messages.success(self.request, f"Задача создана: {job.original_filename}")
+        logger.info(
+            "Задача загружена через форму job_id=%s owner=%s guest=%s ip=%s",
+            job.id,
+            owner.username,
+            is_guest,
+            self.request.META.get("REMOTE_ADDR"),
+        )
         response = redirect(job.get_absolute_url())
         if is_guest:
             guest_job_ids = get_guest_job_ids(self.request)
@@ -221,6 +234,11 @@ class AgentAuthMixin:
     def dispatch(self, request: HttpRequest, *args, **kwargs):
         self.agent = self.authenticate(request)
         if self.agent is None:
+            logger.warning(
+                "Неудачная аутентификация агента ip=%s path=%s",
+                request.META.get("REMOTE_ADDR"),
+                request.path,
+            )
             return JsonResponse({"detail": "Invalid agent token."}, status=401)
         return super().dispatch(request, *args, **kwargs)
 
@@ -262,6 +280,7 @@ class AgentNextJobView(AgentAuthMixin, AgentPayloadMixin, View):
         job = JobService.claim_next_job(agent=self.agent)
         if job is None:
             return JsonResponse({"job": None})
+        logger.info("Агент получил задачу agent=%s job_id=%s", self.agent.pk, job.id)
         return JsonResponse({"job": self.serialize_job(request, job)})
 
 
@@ -290,6 +309,7 @@ class AgentFirmwareDownloadView(AgentAuthMixin, View):
 
     def get(self, request: HttpRequest, job_id) -> FileResponse:
         job = get_object_or_404(Job.objects.filter(claimed_by=self.agent), pk=job_id)
+        logger.debug("Агент скачивает прошивку job_id=%s agent=%s", job.id, self.agent.pk)
         response = FileResponse(job.firmware.open("rb"), as_attachment=True, filename=job.original_filename)
         return response
 
@@ -309,6 +329,7 @@ class AgentJobResultView(AgentAuthMixin, View):
         try:
             job = JobService.complete_job(job=job, agent=self.agent, completion=completion)
         except ValueError as exc:
+            logger.warning("Ошибка завершения задачи job_id=%s agent=%s: %s", job_id, self.agent.pk, exc)
             return JsonResponse({"detail": str(exc)}, status=409)
 
         return JsonResponse({"id": str(job.id), "status": job.status})

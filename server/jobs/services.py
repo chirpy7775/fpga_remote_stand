@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import BinaryIO
@@ -12,6 +13,8 @@ from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
 from .models import Agent, Job, PUBLIC_OWNER_USERNAME
+
+logger = logging.getLogger("jobs")
 
 
 @dataclass(slots=True)
@@ -29,6 +32,7 @@ class JobService:
         if created:
             user.set_unusable_password()
             user.save(update_fields=["password"])
+            logger.info("Создан публичный пользователь username=%s", PUBLIC_OWNER_USERNAME)
         return user
 
     @staticmethod
@@ -39,6 +43,12 @@ class JobService:
             original_filename=firmware.name,
         )
         job.save()
+        logger.info(
+            "Создана задача job_id=%s owner=%s filename=%s",
+            job.id,
+            owner.username,
+            firmware.name,
+        )
         return job
 
     @staticmethod
@@ -62,7 +72,12 @@ class JobService:
                 error_message="Превышен лимит времени выполнения.",
                 execution_log=execution_log,
             )
-            expired_count += updated
+            if updated:
+                expired_count += updated
+                logger.warning("Задача завершена по таймауту job_id=%s", job.id)
+
+        if expired_count:
+            logger.info("Просрочено задач: %d", expired_count)
         return expired_count
 
     @staticmethod
@@ -94,9 +109,17 @@ class JobService:
                 )
                 if updated:
                     agent.touch()
-                    return Job.objects.get(id=job_id)
+                    job = Job.objects.get(id=job_id)
+                    logger.info(
+                        "Задача взята в работу job_id=%s agent=%s deadline=%s",
+                        job.id,
+                        agent.pk,
+                        deadline.isoformat(),
+                    )
+                    return job
 
         agent.touch()
+        logger.debug("Нет задач для агента agent=%s", agent.pk)
         return None
 
     @staticmethod
@@ -108,10 +131,23 @@ class JobService:
                 .first()
             )
             if current is None:
+                logger.error("Попытка завершить несуществующую задачу job_id=%s agent=%s", job.id, agent.pk)
                 raise ValueError("Задача не найдена.")
             if current["claimed_by_id"] != agent.id:
+                logger.warning(
+                    "Агент пытается завершить чужую задачу job_id=%s agent=%s claimed_by=%s",
+                    job.id,
+                    agent.pk,
+                    current["claimed_by_id"],
+                )
                 raise ValueError("Задача выдана другому агенту.")
             if current["status"] != Job.Status.RUNNING:
+                logger.warning(
+                    "Задача не в статусе RUNNING при завершении job_id=%s status=%s agent=%s",
+                    job.id,
+                    current["status"],
+                    agent.pk,
+                )
                 raise ValueError("Задача не находится в состоянии выполнения.")
 
             now = timezone.now()
@@ -129,6 +165,9 @@ class JobService:
                     completion.execution_log = (
                         f"{completion.execution_log}\n[TIMEOUT] Агент прислал результат после таймаута."
                     ).strip()
+                logger.warning(
+                    "Агент прислал результат после дедлайна job_id=%s agent=%s", job.id, agent.pk
+                )
 
             updated = Job.objects.filter(
                 id=job.id,
@@ -141,12 +180,22 @@ class JobService:
                 error_message=completion.error_message,
             )
             if not updated:
+                logger.error(
+                    "Гонка при завершении задачи job_id=%s agent=%s", job.id, agent.pk
+                )
                 raise ValueError("Задача уже обновлена другим процессом.")
 
             updated_job = Job.objects.get(id=job.id)
             if completion.result_video is not None:
                 updated_job.result_video = completion.result_video
                 updated_job.save(update_fields=["result_video", "updated_at"])
+
+            logger.info(
+                "Задача завершена job_id=%s status=%s agent=%s",
+                job.id,
+                status,
+                agent.pk,
+            )
 
         agent.touch()
         return updated_job
