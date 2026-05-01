@@ -8,11 +8,13 @@
         <div>
             <h1>{{ object.original_filename }}</h1>
             <div class="muted">ID: {{ object.id }}</div>
-            {% if object.claimed_by %}
-                <div><strong>Подтверждение:</strong> файл получен агентом {{ object.claimed_by }}.</div>
-            {% endif %}
+            <div id="claimed-by-row">
+                {% if object.claimed_by %}
+                    <div><strong>Подтверждение:</strong> файл получен агентом {{ object.claimed_by }}.</div>
+                {% endif %}
+            </div>
         </div>
-        <span class="status {{ object.status }}">{{ object.get_status_display }}</span>
+        <span id="status-badge" class="status {{ object.status }}">{{ object.get_status_display }}</span>
     </div>
 </section>
 
@@ -20,35 +22,163 @@
     <h2>Метаданные</h2>
     <div class="stack">
         <div><strong>Создана:</strong> {{ object.created_at|date:"d.m.Y H:i:s" }}</div>
-        <div><strong>Старт:</strong> {{ object.started_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
-        <div><strong>Завершение:</strong> {{ object.finished_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
-        <div><strong>Агент:</strong> {{ object.claimed_by|default:"—" }}</div>
-        <div><strong>Таймаут:</strong> {{ object.deadline_at|date:"d.m.Y H:i:s"|default:"—" }}</div>
-        {% if object.error_message %}
-            <div><strong>Ошибка:</strong> {{ object.error_message }}</div>
-        {% endif %}
+        <div><strong>Старт:</strong> <span id="meta-started">{{ object.started_at|date:"d.m.Y H:i:s"|default:"—" }}</span></div>
+        <div><strong>Завершение:</strong> <span id="meta-finished">{{ object.finished_at|date:"d.m.Y H:i:s"|default:"—" }}</span></div>
+        <div><strong>Агент:</strong> <span id="meta-agent">{{ object.claimed_by|default:"—" }}</span></div>
+        <div><strong>Таймаут:</strong> <span id="meta-deadline">{{ object.deadline_at|date:"d.m.Y H:i:s"|default:"—" }}</span></div>
+        <div id="meta-error-row">
+            {% if object.error_message %}
+                <div><strong>Ошибка:</strong> {{ object.error_message }}</div>
+            {% endif %}
+        </div>
     </div>
 </section>
 
 <section class="card">
     <h2>Лог выполнения</h2>
-    {% if object.execution_log %}
-        <pre>{{ object.execution_log }}</pre>
-    {% else %}
-        <p class="muted">Лог пока отсутствует.</p>
-    {% endif %}
+    <div id="log-section">
+        {% if object.execution_log %}
+            <pre id="execution-log">{{ object.execution_log }}</pre>
+        {% else %}
+            <p class="muted" id="log-empty">Лог пока отсутствует.</p>
+        {% endif %}
+    </div>
 </section>
 
 <section class="card">
     <h2>Видео</h2>
-    {% if object.result_video %}
-        <video controls style="max-width:100%; border-radius:14px;">
-            <source src="{{ object.result_video.url }}">
-            Браузер не смог воспроизвести файл. Можно <a href="{{ object.result_video.url }}">скачать результат</a>.
-        </video>
-        <p><a href="{{ object.result_video.url }}">Скачать результат</a></p>
-    {% else %}
-        <p class="muted">Видео пока отсутствует.</p>
-    {% endif %}
+    <div id="video-section">
+        {% if object.result_video %}
+            <video controls style="max-width:100%; border-radius:14px;">
+                <source src="{{ object.result_video.url }}">
+                Браузер не смог воспроизвести файл. Можно <a href="{{ object.result_video.url }}">скачать результат</a>.
+            </video>
+            <p><a href="{{ object.result_video.url }}">Скачать результат</a></p>
+        {% else %}
+            <p class="muted" id="video-empty">Видео пока отсутствует.</p>
+        {% endif %}
+    </div>
 </section>
+
+<script>
+(function () {
+    // Конечные статусы — при них polling останавливается
+    const TERMINAL = new Set(["completed", "error"]);
+
+    const initialStatus = "{{ object.status }}";
+    if (TERMINAL.has(initialStatus)) return; // задача уже завершена — ничего не делаем
+
+    const statusUrl = "{% url 'jobs:job-status' object.pk %}";
+    const POLL_INTERVAL_MS = 3000;
+    let timer = null;
+
+    // --- Хелперы для обновления DOM ---
+
+    function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || "—";
+    }
+
+    function updateStatusBadge(status, statusDisplay) {
+        const badge = document.getElementById("status-badge");
+        if (!badge) return;
+        badge.textContent = statusDisplay;
+        badge.className = "status " + status;
+    }
+
+    function updateClaimedBy(claimedBy) {
+        const row = document.getElementById("claimed-by-row");
+        if (!row) return;
+        if (claimedBy) {
+            row.innerHTML = "<div><strong>Подтверждение:</strong> файл получен агентом " +
+                escapeHtml(claimedBy) + ".</div>";
+        } else {
+            row.innerHTML = "";
+        }
+    }
+
+    function updateLog(log) {
+        const section = document.getElementById("log-section");
+        if (!section) return;
+        if (log) {
+            section.innerHTML = "<pre id=\"execution-log\">" + escapeHtml(log) + "</pre>";
+        } else {
+            section.innerHTML = "<p class=\"muted\" id=\"log-empty\">Лог пока отсутствует.</p>";
+        }
+    }
+
+    function updateError(errorMessage) {
+        const row = document.getElementById("meta-error-row");
+        if (!row) return;
+        if (errorMessage) {
+            row.innerHTML = "<div><strong>Ошибка:</strong> " + escapeHtml(errorMessage) + "</div>";
+        } else {
+            row.innerHTML = "";
+        }
+    }
+
+    function updateVideo(videoUrl) {
+        const section = document.getElementById("video-section");
+        if (!section) return;
+        if (videoUrl) {
+            section.innerHTML =
+                "<video controls style=\"max-width:100%; border-radius:14px;\">" +
+                "<source src=\"" + escapeHtml(videoUrl) + "\">" +
+                "Браузер не смог воспроизвести файл. Можно " +
+                "<a href=\"" + escapeHtml(videoUrl) + "\">скачать результат</a>." +
+                "</video>" +
+                "<p><a href=\"" + escapeHtml(videoUrl) + "\">Скачать результат</a></p>";
+        } else {
+            section.innerHTML = "<p class=\"muted\" id=\"video-empty\">Видео пока отсутствует.</p>";
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // --- Polling ---
+
+    function applyData(data) {
+        updateStatusBadge(data.status, data.status_display);
+        updateClaimedBy(data.claimed_by);
+        setText("meta-started", data.started_at);
+        setText("meta-finished", data.finished_at);
+        setText("meta-agent", data.claimed_by);
+        setText("meta-deadline", data.deadline_at);
+        updateError(data.error_message);
+        updateLog(data.execution_log);
+        updateVideo(data.result_video_url);
+
+        if (TERMINAL.has(data.status)) {
+            clearTimeout(timer);
+        }
+    }
+
+    function poll() {
+        fetch(statusUrl, { credentials: "same-origin" })
+            .then(function (response) {
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                applyData(data);
+                if (!TERMINAL.has(data.status)) {
+                    timer = setTimeout(poll, POLL_INTERVAL_MS);
+                }
+            })
+            .catch(function () {
+                // При сетевой ошибке просто повторяем через тот же интервал
+                timer = setTimeout(poll, POLL_INTERVAL_MS);
+            });
+    }
+
+    // Первый запрос — через 3 секунды после загрузки страницы
+    timer = setTimeout(poll, POLL_INTERVAL_MS);
+})();
+</script>
 {% endblock %}

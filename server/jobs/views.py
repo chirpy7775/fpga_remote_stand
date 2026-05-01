@@ -227,6 +227,45 @@ class JobDetailView(DetailView):
         ).select_related("claimed_by")
 
 
+class JobStatusView(View):
+    """
+    Лёгкий JSON-эндпоинт для polling'а со страницы задачи.
+    Возвращает только поля, нужные для обновления UI без перезагрузки страницы.
+    Права доступа — те же, что у JobDetailView.
+    """
+
+    def get(self, request: HttpRequest, pk) -> JsonResponse:
+        if not request.user.is_authenticated and not is_guest_submission_enabled():
+            return JsonResponse({"detail": "Forbidden"}, status=403)
+
+        if request.user.is_authenticated:
+            qs = request.user.jobs.select_related("claimed_by")
+        else:
+            guest_job_ids = get_guest_job_ids(request)
+            qs = Job.objects.filter(
+                id__in=guest_job_ids,
+                owner__username=PUBLIC_OWNER_USERNAME,
+            ).select_related("claimed_by")
+
+        job = get_object_or_404(qs, pk=pk)
+
+        result_video_url = (
+            request.build_absolute_uri(job.result_video.url) if job.result_video else None
+        )
+
+        return JsonResponse({
+            "status": job.status,
+            "status_display": job.get_status_display(),
+            "claimed_by": str(job.claimed_by) if job.claimed_by else None,
+            "started_at": job.started_at.strftime("%d.%m.%Y %H:%M:%S") if job.started_at else None,
+            "finished_at": job.finished_at.strftime("%d.%m.%Y %H:%M:%S") if job.finished_at else None,
+            "deadline_at": job.deadline_at.strftime("%d.%m.%Y %H:%M:%S") if job.deadline_at else None,
+            "execution_log": job.execution_log,
+            "error_message": job.error_message,
+            "result_video_url": result_video_url,
+        })
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class AgentAuthMixin:
     agent: Agent | None = None
