@@ -48,10 +48,11 @@ TEMPLATES = [
 WSGI_APPLICATION = "remote_stand.wsgi.application"
 ASGI_APPLICATION = "remote_stand.asgi.application"
 
+_db_path_env = os.getenv("DJANGO_DB_PATH", "")
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": Path(_db_path_env) if _db_path_env else BASE_DIR / "db.sqlite3",
     }
 }
 
@@ -79,20 +80,17 @@ ALLOW_ANON_JOB_SUBMISSION = app_config.ALLOW_ANON_JOB_SUBMISSION
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# В DEBUG-режиме пишем DEBUG+, в продакшне — INFO+
 _APP_LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        # Полный формат для файлов — время, уровень, имя логгера, pid, tid, сообщение
         "verbose": {
             "format": "{asctime} {levelname:<8} {name} pid={process} {message}",
             "style": "{",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
-        # Короткий формат для консоли
         "simple": {
             "format": "{asctime} {levelname:<8} {name} {message}",
             "style": "{",
@@ -100,47 +98,42 @@ LOGGING = {
         },
     },
     "handlers": {
-        # --- Консоль (всегда активна) ---
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "simple",
             "level": "DEBUG",
         },
-        # --- Django: WARNING+, ротация по размеру 10 МБ, 5 архивов ---
         "django_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "django.log"),
-            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
             "encoding": "utf-8",
             "level": "WARNING",
         },
-        # --- HTTP-запросы: только ошибки (4xx/5xx) ---
         "request_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "requests.log"),
-            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
             "encoding": "utf-8",
             "level": "WARNING",
         },
-        # --- Безопасность: WARNING+, 10 архивов ---
         "security_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "security.log"),
-            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "maxBytes": 10 * 1024 * 1024,
             "backupCount": 10,
             "formatter": "verbose",
             "encoding": "utf-8",
             "level": "WARNING",
         },
-        # --- Приложение jobs: DEBUG/INFO в зависимости от DEBUG-флага ---
         "jobs_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "jobs.log"),
-            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
             "encoding": "utf-8",
@@ -148,25 +141,21 @@ LOGGING = {
         },
     },
     "loggers": {
-        # Корневой Django-логгер
         "django": {
             "handlers": ["console", "django_file"],
             "level": "WARNING",
             "propagate": False,
         },
-        # HTTP-запросы (500-е попадают сюда)
         "django.request": {
             "handlers": ["console", "request_file"],
             "level": "WARNING",
             "propagate": False,
         },
-        # CSRF, SuspiciousOperation и т.п.
         "django.security": {
             "handlers": ["console", "security_file"],
             "level": "WARNING",
             "propagate": False,
         },
-        # Логика приложения
         "jobs": {
             "handlers": ["console", "jobs_file"],
             "level": _APP_LOG_LEVEL,
