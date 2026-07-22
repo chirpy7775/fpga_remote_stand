@@ -13,6 +13,7 @@
                     <div><strong>Подтверждение:</strong> файл получен агентом {{ object.claimed_by }}.</div>
                 {% endif %}
             </div>
+            <div id="notif-row" style="margin-top:8px; font-size:13px;"></div>
         </div>
         <span id="status-badge" class="status {{ object.status }}">{{ object.get_status_display }}</span>
     </div>
@@ -66,6 +67,22 @@
     const TERMINAL = new Set(["completed", "error"]);
 
     const initialStatus = "{{ object.status }}";
+    // escapejs обязателен: original_filename и pk попадают в JS-строку внутри
+    // <script>, а original_filename — это имя файла, заданное пользователем
+    // при загрузке. Без escapejs специально сформированное имя файла могло бы
+    // вырваться за пределы строкового литерала (Django autoescape этого не
+    // предотвращает внутри <script>, т.к. браузер не декодирует HTML-сущности
+    // в содержимом script-тега).
+    const jobId = "{{ object.pk|escapejs }}";
+    const jobLabel = "{{ object.original_filename|escapejs }}";
+
+    // --- Уведомления браузера ---
+    // Инициализация не зависит от текущего статуса задачи: разрешение имеет
+    // смысл запросить сразу при открытии страницы. Если задача уже завершена
+    // (см. ранний return ниже), само уведомление о завершении не покажется —
+    // оно не нужно для события, которое произошло до открытия страницы.
+    initNotifications();
+
     if (TERMINAL.has(initialStatus)) return; // задача уже завершена — ничего не делаем
 
     const statusUrl = "{% url 'jobs:job-status' object.pk %}";
@@ -141,7 +158,75 @@
             .replace(/"/g, "&quot;");
     }
 
-    // --- Polling ---
+
+    function initNotifications() {
+        const row = document.getElementById("notif-row");
+        if (!row) return;
+
+        if (!("Notification" in window)) {
+            row.innerHTML = "";
+            return; 
+        }
+
+        renderNotifRow(row, Notification.permission);
+
+        if (Notification.permission === "default") {
+            Notification.requestPermission().then(function (permission) {
+                renderNotifRow(row, permission);
+            }).catch(function () {
+                
+            });
+        }
+    }
+
+    function renderNotifRow(row, permission) {
+        if (permission === "granted") {
+            row.innerHTML = '<span class="muted">Уведомления о завершении задачи включены.</span>';
+        } else if (permission === "denied") {
+            row.innerHTML = '<span class="muted">Уведомления заблокированы в настройках браузера.</span>';
+        } else {
+            row.innerHTML =
+                '<button type="button" id="enable-notif-btn" ' +
+                'style="font-size:12px; padding:6px 10px;">Включить уведомления о завершении</button>';
+            const btn = document.getElementById("enable-notif-btn");
+            if (btn) {
+                btn.addEventListener("click", function () {
+                    Notification.requestPermission().then(function (newPermission) {
+                        renderNotifRow(row, newPermission);
+                    });
+                });
+            }
+        }
+    }
+
+    function notifyTerminalStatus(status, errorMessage) {
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+        let title;
+        let body;
+        if (status === "completed") {
+            title = "Задача завершена";
+            body = jobLabel + " — выполнение завершено успешно.";
+        } else {
+            title = "Ошибка выполнения задачи";
+            body = errorMessage
+                ? jobLabel + " — " + errorMessage
+                : jobLabel + " — задача завершилась с ошибкой.";
+        }
+
+        try {
+            const notification = new Notification(title, {
+                body: body,
+                tag: "fpga-job-" + jobId,
+            });
+            notification.onclick = function () {
+                window.focus();
+                notification.close();
+            };
+        } catch (err) {
+        }
+    }
+
 
     function applyData(data) {
         updateStatusBadge(data.status, data.status_display);
@@ -156,6 +241,7 @@
 
         if (TERMINAL.has(data.status)) {
             clearTimeout(timer);
+            notifyTerminalStatus(data.status, data.error_message);
         }
     }
 
@@ -172,12 +258,12 @@
                 }
             })
             .catch(function () {
-                // При сетевой ошибке просто повторяем через тот же интервал
+                
                 timer = setTimeout(poll, POLL_INTERVAL_MS);
             });
     }
 
-    // Первый запрос — через 3 секунды после загрузки страницы
+    
     timer = setTimeout(poll, POLL_INTERVAL_MS);
 })();
 </script>
