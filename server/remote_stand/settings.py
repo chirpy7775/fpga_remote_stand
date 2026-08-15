@@ -9,12 +9,14 @@ DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if host.strip()]
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "jobs",
 ]
 
@@ -48,6 +50,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "remote_stand.wsgi.application"
 ASGI_APPLICATION = "remote_stand.asgi.application"
 
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -72,14 +81,12 @@ LOGOUT_REDIRECT_URL = "register"
 EXECUTION_TIMEOUT_SECONDS = int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "300"))
 ALLOW_ANON_JOB_SUBMISSION = app_config.ALLOW_ANON_JOB_SUBMISSION
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
+
 
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# В DEBUG-режиме пишем DEBUG+, в продакшне — INFO+
+
 _APP_LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
 
 LOGGING = {
@@ -92,7 +99,7 @@ LOGGING = {
             "style": "{",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
-        # Короткий формат для консоли
+        
         "simple": {
             "format": "{asctime} {levelname:<8} {name} {message}",
             "style": "{",
@@ -100,13 +107,13 @@ LOGGING = {
         },
     },
     "handlers": {
-        # --- Консоль (всегда активна) ---
+        
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "simple",
             "level": "DEBUG",
         },
-        # --- Django: WARNING+, ротация по размеру 10 МБ, 5 архивов ---
+        
         "django_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "django.log"),
@@ -116,7 +123,7 @@ LOGGING = {
             "encoding": "utf-8",
             "level": "WARNING",
         },
-        # --- HTTP-запросы: только ошибки (4xx/5xx) ---
+        
         "request_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "requests.log"),
@@ -126,7 +133,7 @@ LOGGING = {
             "encoding": "utf-8",
             "level": "WARNING",
         },
-        # --- Безопасность: WARNING+, 10 архивов ---
+        
         "security_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": str(LOG_DIR / "security.log"),

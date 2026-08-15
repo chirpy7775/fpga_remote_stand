@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import BinaryIO
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
+from django.http import HttpRequest
 from django.utils import timezone
 
 from .models import Agent, Job, PUBLIC_OWNER_USERNAME
@@ -52,6 +55,47 @@ class JobService:
         return job
 
     @staticmethod
+    def serialize_job_status(job: Job, *, request: HttpRequest | None = None) -> dict:
+        
+        if job.result_video:
+            result_video_url = (
+                request.build_absolute_uri(job.result_video.url)
+                if request is not None
+                else job.result_video.url
+            )
+        else:
+            result_video_url = None
+
+        return {
+            "status": job.status,
+            "status_display": job.get_status_display(),
+            "claimed_by": str(job.claimed_by) if job.claimed_by else None,
+            "started_at": job.started_at.strftime("%d.%m.%Y %H:%M:%S") if job.started_at else None,
+            "finished_at": job.finished_at.strftime("%d.%m.%Y %H:%M:%S") if job.finished_at else None,
+            "deadline_at": job.deadline_at.strftime("%d.%m.%Y %H:%M:%S") if job.deadline_at else None,
+            "execution_log": job.execution_log,
+            "error_message": job.error_message,
+            "result_video_url": result_video_url,
+        }
+
+    @staticmethod
+    def _broadcast_job_update(job_id) -> None:
+        
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+
+        job = Job.objects.filter(id=job_id).select_related("claimed_by").first()
+        if job is None:
+            return
+
+        payload = JobService.serialize_job_status(job)
+        async_to_sync(channel_layer.group_send)(
+            f"job_{job.id}",
+            {"type": "job.update", "payload": payload},
+        )
+
+    @staticmethod
     def expire_timed_out_jobs() -> int:
         now = timezone.now()
         expired_jobs = Job.objects.filter(
@@ -75,6 +119,7 @@ class JobService:
             if updated:
                 expired_count += updated
                 logger.warning("Задача завершена по таймауту job_id=%s", job.id)
+                JobService._broadcast_job_update(job.id)
 
         if expired_count:
             logger.info("Просрочено задач: %d", expired_count)
@@ -116,6 +161,7 @@ class JobService:
                         agent.pk,
                         deadline.isoformat(),
                     )
+                    JobService._broadcast_job_update(job.id)
                     return job
 
         agent.touch()
@@ -198,4 +244,5 @@ class JobService:
             )
 
         agent.touch()
+        JobService._broadcast_job_update(updated_job.id)
         return updated_job

@@ -40,17 +40,8 @@ def _normalize_job_id(value: str) -> str | None:
         return None
 
 
-def get_guest_job_ids(request: HttpRequest) -> list[str]:
-    try:
-        raw = request.get_signed_cookie(
-            GUEST_JOBS_COOKIE,
-            default="[]",
-            salt=GUEST_JOBS_COOKIE_SALT,
-        )
-    except BadSignature:
-        logger.warning("Подпись куки гостевых задач недействительна ip=%s", request.META.get("REMOTE_ADDR"))
-        return []
-
+def _parse_guest_job_ids_payload(raw: str) -> list[str]:
+    
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -70,6 +61,26 @@ def get_guest_job_ids(request: HttpRequest) -> list[str]:
         seen.add(job_id)
         normalized_ids.append(job_id)
     return normalized_ids[-GUEST_HISTORY_MAX_ITEMS:]
+
+
+def get_guest_job_ids(request: HttpRequest) -> list[str]:
+    try:
+        raw = request.get_signed_cookie(
+            GUEST_JOBS_COOKIE,
+            default="[]",
+            salt=GUEST_JOBS_COOKIE_SALT,
+        )
+    except BadSignature:
+        logger.warning("Подпись куки гостевых задач недействительна ip=%s", request.META.get("REMOTE_ADDR"))
+        return []
+    return _parse_guest_job_ids_payload(raw)
+
+
+def get_guest_job_ids_from_cookies(cookies: dict) -> list[str]:
+    
+    fake_request = HttpRequest()
+    fake_request.COOKIES = dict(cookies)
+    return get_guest_job_ids(fake_request)
 
 
 def set_guest_job_ids(response: HttpResponse, job_ids: list[str]) -> None:
@@ -228,11 +239,7 @@ class JobDetailView(DetailView):
 
 
 class JobStatusView(View):
-    """
-    Лёгкий JSON-эндпоинт для polling'а со страницы задачи.
-    Возвращает только поля, нужные для обновления UI без перезагрузки страницы.
-    Права доступа — те же, что у JobDetailView.
-    """
+    
 
     def get(self, request: HttpRequest, pk) -> JsonResponse:
         if not request.user.is_authenticated and not is_guest_submission_enabled():
@@ -248,22 +255,7 @@ class JobStatusView(View):
             ).select_related("claimed_by")
 
         job = get_object_or_404(qs, pk=pk)
-
-        result_video_url = (
-            request.build_absolute_uri(job.result_video.url) if job.result_video else None
-        )
-
-        return JsonResponse({
-            "status": job.status,
-            "status_display": job.get_status_display(),
-            "claimed_by": str(job.claimed_by) if job.claimed_by else None,
-            "started_at": job.started_at.strftime("%d.%m.%Y %H:%M:%S") if job.started_at else None,
-            "finished_at": job.finished_at.strftime("%d.%m.%Y %H:%M:%S") if job.finished_at else None,
-            "deadline_at": job.deadline_at.strftime("%d.%m.%Y %H:%M:%S") if job.deadline_at else None,
-            "execution_log": job.execution_log,
-            "error_message": job.error_message,
-            "result_video_url": result_video_url,
-        })
+        return JsonResponse(JobService.serialize_job_status(job, request=request))
 
 
 @method_decorator(csrf_exempt, name="dispatch")
