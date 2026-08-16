@@ -364,3 +364,45 @@ class AgentJobResultView(AgentAuthMixin, View):
             return JsonResponse({"detail": str(exc)}, status=409)
 
         return JsonResponse({"id": str(job.id), "status": job.status})
+
+
+class JobRetryView(View):
+    http_method_names = ["post"]
+
+    def post(self, request: HttpRequest, pk) -> HttpResponse:
+        if not request.user.is_authenticated and not is_guest_submission_enabled():
+            messages.error(request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
+            return redirect("jobs:start")
+
+        if request.user.is_authenticated:
+            qs = request.user.jobs
+        else:
+            guest_job_ids = get_guest_job_ids(request)
+            qs = Job.objects.filter(
+                id__in=guest_job_ids,
+                owner__username=PUBLIC_OWNER_USERNAME,
+            )
+
+        job = get_object_or_404(qs, pk=pk)
+
+        try:
+            new_job = JobService.retry_job(job=job, owner=job.owner)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect(job.get_absolute_url())
+
+        messages.success(request, f"Задача поставлена в очередь повторно ({new_job.retry_count}/{Job.MAX_RETRIES}).")
+        logger.info(
+            "Retry через UI original_job_id=%s new_job_id=%s user=%s",
+            job.id,
+            new_job.id,
+            request.user if request.user.is_authenticated else "guest",
+        )
+
+        response = redirect(new_job.get_absolute_url())
+        if not request.user.is_authenticated:
+            guest_job_ids = get_guest_job_ids(request)
+            guest_job_ids.append(str(new_job.id))
+            set_guest_job_ids(response, guest_job_ids)
+            mark_guest_mode(response)
+        return response

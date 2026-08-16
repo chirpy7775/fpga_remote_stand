@@ -235,3 +235,321 @@
 2026-08-16 00:58:44 WARNING  django.request pid=563 Not Found: /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/
 2026-08-16 00:58:47 WARNING  django.request pid=563 Not Found: /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/
 2026-08-16 00:58:49 WARNING  django.request pid=563 Not Found: /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/
+2026-08-16 01:11:15 ERROR    django.request pid=1262 Internal Server Error: /dashboard/
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: jobs_job.retry_count
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 285, in _get_response_async
+    response = await sync_to_async(
+               ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 526, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 581, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 508, in func
+    return context.run(run_child)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 506, in run_child
+    return child()
+           ^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/response.py", line 114, in render
+    self.content = self.rendered_content
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/response.py", line 92, in rendered_content
+    return template.render(context, self._request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/backends/django.py", line 107, in render
+    return self.template.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 174, in render
+    return self._render(context)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/loader_tags.py", line 160, in render
+    return compiled_parent._render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/loader_tags.py", line 66, in render
+    result = block.nodelist.render(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/defaulttags.py", line 332, in render
+    if match:
+       ^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 404, in __bool__
+    self._fetch_all()
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: jobs_job.retry_count
+2026-08-16 01:11:35 ERROR    django.request pid=1262 Internal Server Error: /dashboard/
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: jobs_job.retry_count
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 285, in _get_response_async
+    response = await sync_to_async(
+               ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 526, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 581, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 508, in func
+    return context.run(run_child)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 506, in run_child
+    return child()
+           ^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/response.py", line 114, in render
+    self.content = self.rendered_content
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/response.py", line 92, in rendered_content
+    return template.render(context, self._request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/backends/django.py", line 107, in render
+    return self.template.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 174, in render
+    return self._render(context)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/loader_tags.py", line 160, in render
+    return compiled_parent._render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/loader_tags.py", line 66, in render
+    result = block.nodelist.render(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/base.py", line 1052, in render_annotated
+    return self.render(context)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/template/defaulttags.py", line 332, in render
+    if match:
+       ^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 404, in __bool__
+    self._fetch_all()
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: jobs_job.retry_count
+2026-08-16 01:16:12 ERROR    django.request pid=1735 Internal Server Error: /agent/api/jobs/97c966a0-5455-4ea2-8ca1-8df7a163c8a2/result/
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 254, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 526, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 581, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 508, in func
+    return context.run(run_child)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 506, in run_child
+    return child()
+           ^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/generic/base.py", line 106, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/utils/decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/jobs/views.py", line 274, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/generic/base.py", line 145, in dispatch
+    return handler(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/jobs/views.py", line 366, in post
+    return JsonResponse({"id": str(job.id), "status": job.status})
+                                   ^^^^^^
+AttributeError: 'NoneType' object has no attribute 'id'
+2026-08-16 01:16:22 ERROR    django.request pid=1735 Internal Server Error: /agent/api/jobs/d4bbadc6-723b-47a2-942c-6638af664e4f/result/
+Traceback (most recent call last):
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 577, in thread_handler
+    raise exc_info[1]
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 254, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 526, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 581, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 508, in func
+    return context.run(run_child)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/asgiref/sync.py", line 506, in run_child
+    return child()
+           ^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/generic/base.py", line 106, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/utils/decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/jobs/views.py", line 274, in dispatch
+    return super().dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/.venv/lib/python3.12/site-packages/django/views/generic/base.py", line 145, in dispatch
+    return handler(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/pro/pro1/fpga_remote_stand/server/jobs/views.py", line 366, in post
+    return JsonResponse({"id": str(job.id), "status": job.status})
+                                   ^^^^^^
+AttributeError: 'NoneType' object has no attribute 'id'

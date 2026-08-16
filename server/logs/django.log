@@ -235,3 +235,7 @@
 2026-08-16 00:58:44 WARNING  django.channels.server pid=563 [33mHTTP GET /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/ 404 [0.01, 127.0.0.1:60680][0m
 2026-08-16 00:58:47 WARNING  django.channels.server pid=563 [33mHTTP GET /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/ 404 [0.01, 127.0.0.1:60680][0m
 2026-08-16 00:58:49 WARNING  django.channels.server pid=563 [33mHTTP GET /jobs/cdb1db38-8a5b-4288-aa0e-7dba81851754/ 404 [0.01, 127.0.0.1:60680][0m
+2026-08-16 01:11:15 ERROR    django.channels.server pid=1262 [35;1mHTTP GET /dashboard/ 500 [0.30, 127.0.0.1:45694][0m
+2026-08-16 01:11:35 ERROR    django.channels.server pid=1262 [35;1mHTTP GET /dashboard/ 500 [0.12, 127.0.0.1:45694][0m
+2026-08-16 01:16:12 ERROR    django.channels.server pid=1735 [35;1mHTTP POST /agent/api/jobs/97c966a0-5455-4ea2-8ca1-8df7a163c8a2/result/ 500 [0.10, 127.0.0.1:43724][0m
+2026-08-16 01:16:22 ERROR    django.channels.server pid=1735 [35;1mHTTP POST /agent/api/jobs/d4bbadc6-723b-47a2-942c-6638af664e4f/result/ 500 [0.06, 127.0.0.1:43724][0m

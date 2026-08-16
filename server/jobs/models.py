@@ -52,6 +52,8 @@ class Agent(TimeStampedModel):
 
 
 class Job(TimeStampedModel):
+    MAX_RETRIES = 3
+
     class Status(models.TextChoices):
         WAITING = "waiting", "ожидает"
         RUNNING = "running", "выполняется"
@@ -63,13 +65,23 @@ class Job(TimeStampedModel):
     firmware = models.FileField(upload_to=firmware_upload_to)
     original_filename = models.CharField(max_length=255)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.WAITING)
-    claimed_by = models.ForeignKey(Agent, null=True, blank=True, on_delete=models.SET_NULL, related_name="jobs")
+    claimed_by = models.ForeignKey(
+        Agent, null=True, blank=True, on_delete=models.SET_NULL, related_name="jobs"
+    )
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     deadline_at = models.DateTimeField(null=True, blank=True)
     execution_log = models.TextField(blank=True)
     result_video = models.FileField(upload_to=result_video_upload_to, null=True, blank=True)
     error_message = models.CharField(max_length=255, blank=True)
+    retry_count = models.PositiveSmallIntegerField(default=0)
+    source_job = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="retries",
+    )
 
     class Meta:
         ordering = ("-created_at",)
@@ -79,6 +91,13 @@ class Job(TimeStampedModel):
 
     def get_absolute_url(self) -> str:
         return reverse("jobs:job-detail", kwargs={"pk": self.pk})
+
+    @property
+    def can_retry(self) -> bool:
+        return (
+            self.status in {self.Status.ERROR, self.Status.COMPLETED}
+            and self.retry_count < self.MAX_RETRIES
+        )
 
     @property
     def queue_position(self) -> int | None:

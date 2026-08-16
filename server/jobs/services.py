@@ -242,6 +242,34 @@ class JobService:
                 status,
                 agent.pk,
             )
+    @staticmethod
+    def retry_job(*, job: Job, owner) -> Job:
+        if job.status not in {Job.Status.ERROR, Job.Status.COMPLETED}:
+            raise ValueError("Повторный запуск возможен только для завершённых задач.")
+        if job.retry_count >= Job.MAX_RETRIES:
+            raise ValueError(
+                f"Превышен лимит повторных запусков ({Job.MAX_RETRIES})."
+            )
+        if not job.firmware:
+            raise ValueError("Файл прошивки исходной задачи не найден.")
+
+        new_job = Job(
+            owner=owner,
+            original_filename=job.original_filename,
+            retry_count=job.retry_count + 1,
+            source_job=job,
+        )
+        new_job.firmware = job.firmware.name
+        new_job.save()
+        logger.info(
+            "Повторный запуск job_id=%s -> new_job_id=%s retry_count=%d",
+            job.id,
+            new_job.id,
+            new_job.retry_count,
+        )
+        return new_job
+
+        
 
         agent.touch()
         JobService._broadcast_job_update(updated_job.id)
