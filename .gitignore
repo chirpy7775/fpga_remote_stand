@@ -12,7 +12,15 @@ env/
 *.sqlite3
 media/
 workspace/
+workspace-stand2/
 
 *.swp
 *.tmp
 .DS_Store
+.idea/
+
+node_modules/
+server/frontend/dist/
+agent.log
+server/logs/
+

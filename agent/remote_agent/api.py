@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import logging
 from pathlib import Path
 
@@ -22,29 +21,30 @@ class ServerClient:
         if token:
             self.session.headers.update({"Authorization": f"Token {token}"})
 
-    def claim_job(self) -> RemoteJob | None:
-        try:
-            response = self.session.post(
-                f"{self.server_url}/agent/api/jobs/claim/",
-                timeout=10,
-            )
-            response.raise_for_status()
-            payload = response.json().get("job")
-            if payload is None:
-                return None
-            return RemoteJob.from_payload(payload)
-        except requests.exceptions.ConnectionError as exc:
-            raise ServerError(f"Сервер недоступен: {exc}") from exc
-        except requests.exceptions.Timeout as exc:
-            raise ServerError(f"Таймаут при запросе задачи: {exc}") from exc
-        except requests.exceptions.HTTPError as exc:
-            raise ServerError(f"HTTP-ошибка при запросе задачи: {exc}") from exc
-        except requests.exceptions.RequestException as exc:
-            raise ServerError(f"Сетевая ошибка при запросе задачи: {exc}") from exc
+    def ws_base(self) -> str:
+        if self.server_url.startswith("https://"):
+            return "wss://" + self.server_url.removeprefix("https://")
+        return "ws://" + self.server_url.removeprefix("http://")
 
-    def download_firmware(self, *, job: RemoteJob, destination: Path) -> Path:
+    def heartbeat(self) -> dict:
         try:
-            response = self.session.get(job.download_url, stream=True, timeout=30)
+            response = self.session.post(f"{self.server_url}/agent/api/heartbeat/", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as exc:
+            raise ServerError(f"heartbeat failed: {exc}") from exc
+
+    def get_session(self) -> dict | None:
+        try:
+            response = self.session.get(f"{self.server_url}/agent/api/session/", timeout=10)
+            response.raise_for_status()
+            return response.json().get("session")
+        except requests.exceptions.RequestException as exc:
+            raise ServerError(f"session poll failed: {exc}") from exc
+
+    def download_file(self, url: str, destination: Path) -> Path:
+        try:
+            response = self.session.get(url, stream=True, timeout=30)
             response.raise_for_status()
             destination.parent.mkdir(parents=True, exist_ok=True)
             with destination.open("wb") as file_handle:
@@ -52,14 +52,27 @@ class ServerClient:
                     if chunk:
                         file_handle.write(chunk)
             return destination
-        except requests.exceptions.ConnectionError as exc:
-            raise ServerError(f"Сервер недоступен при скачивании прошивки: {exc}") from exc
-        except requests.exceptions.Timeout as exc:
-            raise ServerError(f"Таймаут при скачивании прошивки: {exc}") from exc
-        except requests.exceptions.HTTPError as exc:
-            raise ServerError(f"HTTP-ошибка при скачивании прошивки: {exc}") from exc
         except requests.exceptions.RequestException as exc:
-            raise ServerError(f"Сетевая ошибка при скачивании прошивки: {exc}") from exc
+            raise ServerError(f"download failed: {exc}") from exc
+
+    def claim_job(self) -> RemoteJob | None:
+        try:
+            response = self.session.post(f"{self.server_url}/agent/api/jobs/claim/", timeout=10)
+            response.raise_for_status()
+            payload = response.json().get("job")
+            if payload is None:
+                return None
+            return RemoteJob.from_payload(payload)
+        except requests.exceptions.RequestException as exc:
+            raise ServerError(f"claim failed: {exc}") from exc
+
+    def download_firmware(self, *, job: RemoteJob, destination: Path) -> Path:
+        return self.download_file(job.download_url, destination)
+
+    def download_instruction(self, *, job: RemoteJob, destination: Path) -> Path | None:
+        if not job.instruction_url:
+            return None
+        return self.download_file(job.instruction_url, destination)
 
     def submit_result(self, *, job: RemoteJob, result: ExecutionResult) -> dict:
         data = {
@@ -69,28 +82,18 @@ class ServerClient:
         }
         files = {}
         if result.video_path is not None and result.video_path.exists():
+            content_type = "video/mp4" if result.video_path.suffix.lower() == ".mp4" else "image/png"
             files["result_video"] = (
                 result.video_path.name,
                 result.video_path.open("rb"),
-                "video/mp4",
+                content_type,
             )
         try:
-            response = self.session.post(
-                job.result_url,
-                data=data,
-                files=files,
-                timeout=30,
-            )
+            response = self.session.post(job.result_url, data=data, files=files, timeout=60)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.ConnectionError as exc:
-            raise ServerError(f"Сервер недоступен при отправке результата: {exc}") from exc
-        except requests.exceptions.Timeout as exc:
-            raise ServerError(f"Таймаут при отправке результата: {exc}") from exc
-        except requests.exceptions.HTTPError as exc:
-            raise ServerError(f"HTTP-ошибка при отправке результата: {exc}") from exc
         except requests.exceptions.RequestException as exc:
-            raise ServerError(f"Сетевая ошибка при отправке результата: {exc}") from exc
+            raise ServerError(f"submit failed: {exc}") from exc
         finally:
             file_obj = files.get("result_video")
             if file_obj:

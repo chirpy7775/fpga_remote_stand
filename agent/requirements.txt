@@ -1,4 +1,4 @@
 requests
-argparse
+websocket-client
 opencv-python
 numpy

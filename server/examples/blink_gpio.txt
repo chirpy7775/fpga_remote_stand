@@ -1,0 +1,8 @@
+pin 1 high
+write_frame 12
+pin 1 low
+write_frame 8
+pin 2 high
+write_frame 12
+pin 2 low
+write_frame 8

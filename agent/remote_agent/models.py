@@ -12,6 +12,8 @@ class RemoteJob:
     download_url: str
     result_url: str
     detail_url: str
+    instruction_url: str | None = None
+    instruction_filename: str | None = None
     deadline_at: str | None = None
 
     @classmethod
@@ -23,6 +25,8 @@ class RemoteJob:
             download_url=payload["download_url"],
             result_url=payload["result_url"],
             detail_url=payload["detail_url"],
+            instruction_url=payload.get("instruction_url"),
+            instruction_filename=payload.get("instruction_filename"),
             deadline_at=payload.get("deadline_at"),
         )
 

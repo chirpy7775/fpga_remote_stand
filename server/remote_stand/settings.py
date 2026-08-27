@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-import config as app_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -9,12 +8,14 @@ DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if host.strip()]
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "jobs",
 ]
 
@@ -33,7 +34,7 @@ ROOT_URLCONF = "remote_stand.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -47,6 +48,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "remote_stand.wsgi.application"
 ASGI_APPLICATION = "remote_stand.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",")
+    if origin.strip()
+]
 
 DATABASES = {
     "default": {
@@ -67,10 +83,17 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_REDIRECT_URL = "jobs:dashboard"
-LOGOUT_REDIRECT_URL = "register"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:5173").rstrip("/")
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/admin/"
+LOGOUT_REDIRECT_URL = "/admin/"
 EXECUTION_TIMEOUT_SECONDS = int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "300"))
-ALLOW_ANON_JOB_SUBMISSION = app_config.ALLOW_ANON_JOB_SUBMISSION
+ALLOW_ANON_JOB_SUBMISSION = os.getenv("ALLOW_ANON_JOB_SUBMISSION", "1").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 # ---------------------------------------------------------------------------
 # Logging

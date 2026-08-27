@@ -1,269 +1,26 @@
 from __future__ import annotations
 
-import json
 import logging
-from uuid import UUID
 
 from django.conf import settings
-from django.contrib import messages
-from django.contrib.auth import login
-from django.core.signing import BadSignature
-from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import FileResponse, HttpRequest, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import DetailView, FormView, RedirectView, TemplateView
+from django.views.generic import RedirectView
 
-from .forms import JobUploadForm, RegistrationForm
-from .models import Agent, Job, PUBLIC_OWNER_USERNAME
-from .services import JobCompletion, JobService
+from .models import Agent, Job, StandSession
+from .serializers import serialize_agent_job
+from .services import JobCompletion, JobService, SessionService
 
 logger = logging.getLogger("jobs")
-
-GUEST_MODE_COOKIE = "guest_mode"
-GUEST_JOBS_COOKIE = "guest_jobs"
-GUEST_JOBS_COOKIE_SALT = "jobs.guest-history"
-GUEST_HISTORY_MAX_ITEMS = 40
-GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
-
-
-def is_guest_submission_enabled() -> bool:
-    return bool(getattr(settings, "ALLOW_ANON_JOB_SUBMISSION", True))
-
-
-def _normalize_job_id(value: str) -> str | None:
-    try:
-        return str(UUID(value))
-    except ValueError:
-        return None
-
-
-def get_guest_job_ids(request: HttpRequest) -> list[str]:
-    try:
-        raw = request.get_signed_cookie(
-            GUEST_JOBS_COOKIE,
-            default="[]",
-            salt=GUEST_JOBS_COOKIE_SALT,
-        )
-    except BadSignature:
-        logger.warning("Подпись куки гостевых задач недействительна ip=%s", request.META.get("REMOTE_ADDR"))
-        return []
-
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-
-    if not isinstance(payload, list):
-        return []
-
-    normalized_ids: list[str] = []
-    seen: set[str] = set()
-    for item in payload:
-        if not isinstance(item, str):
-            continue
-        job_id = _normalize_job_id(item)
-        if job_id is None or job_id in seen:
-            continue
-        seen.add(job_id)
-        normalized_ids.append(job_id)
-    return normalized_ids[-GUEST_HISTORY_MAX_ITEMS:]
-
-
-def set_guest_job_ids(response: HttpResponse, job_ids: list[str]) -> None:
-    normalized_ids: list[str] = []
-    seen: set[str] = set()
-    for item in job_ids:
-        job_id = _normalize_job_id(item)
-        if job_id is None or job_id in seen:
-            continue
-        seen.add(job_id)
-        normalized_ids.append(job_id)
-
-    payload = json.dumps(normalized_ids[-GUEST_HISTORY_MAX_ITEMS:])
-    response.set_signed_cookie(
-        GUEST_JOBS_COOKIE,
-        payload,
-        salt=GUEST_JOBS_COOKIE_SALT,
-        max_age=GUEST_COOKIE_MAX_AGE,
-        httponly=True,
-        samesite="Lax",
-        secure=not settings.DEBUG,
-    )
-
-
-def mark_guest_mode(response: HttpResponse) -> None:
-    response.set_cookie(
-        GUEST_MODE_COOKIE,
-        "1",
-        max_age=GUEST_COOKIE_MAX_AGE,
-        httponly=True,
-        samesite="Lax",
-        secure=not settings.DEBUG,
-    )
 
 
 class HomeView(RedirectView):
     def get_redirect_url(self, *args, **kwargs):
-        guest_submission_enabled = is_guest_submission_enabled()
-        if self.request.user.is_authenticated:
-            return reverse("jobs:dashboard")
-        if guest_submission_enabled and (
-            self.request.COOKIES.get(GUEST_MODE_COOKIE) == "1" or get_guest_job_ids(self.request)
-        ):
-            return reverse("jobs:dashboard")
-        return reverse("jobs:start")
-
-
-class StartView(TemplateView):
-    template_name = "registration/start.html"
-
-    def dispatch(self, request: HttpRequest, *args, **kwargs):
-        if request.user.is_authenticated:
-            return redirect("jobs:dashboard")
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["allow_anonymous_submission"] = is_guest_submission_enabled()
-        return context
-
-
-class ContinueAsGuestView(View):
-    http_method_names = ["post"]
-
-    def post(self, request: HttpRequest) -> HttpResponse:
-        if not is_guest_submission_enabled():
-            messages.error(request, "Анонимная отправка заданий отключена.")
-            return redirect("jobs:start")
-        response = redirect("jobs:dashboard")
-        mark_guest_mode(response)
-        logger.debug("Гостевой режим активирован ip=%s", request.META.get("REMOTE_ADDR"))
-        return response
-
-
-class RegisterView(FormView):
-    form_class = RegistrationForm
-    template_name = "registration/register.html"
-
-    def form_valid(self, form: RegistrationForm) -> HttpResponse:
-        user = form.save()
-        login(self.request, user)
-        messages.success(self.request, "Аккаунт создан.")
-        logger.info("Зарегистрирован новый пользователь username=%s", user.username)
-        return redirect("jobs:dashboard")
-
-
-class DashboardView(FormView):
-    form_class = JobUploadForm
-    template_name = "jobs/dashboard.html"
-
-    def dispatch(self, request: HttpRequest, *args, **kwargs):
-        if not request.user.is_authenticated and not is_guest_submission_enabled():
-            messages.error(request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
-            return redirect("jobs:start")
-        JobService.expire_timed_out_jobs()
-        return super().dispatch(request, *args, **kwargs)
-
-    def form_valid(self, form: JobUploadForm) -> HttpResponse:
-        if not self.request.user.is_authenticated and not is_guest_submission_enabled():
-            messages.error(self.request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
-            return redirect("jobs:start")
-        firmware = form.cleaned_data["firmware"]
-        is_guest = not self.request.user.is_authenticated
-        owner = self.request.user if self.request.user.is_authenticated else JobService.get_public_owner()
-        job = JobService.create_job(owner=owner, firmware=firmware)
-        messages.success(self.request, f"Задача создана: {job.original_filename}")
-        logger.info(
-            "Задача загружена через форму job_id=%s owner=%s guest=%s ip=%s",
-            job.id,
-            owner.username,
-            is_guest,
-            self.request.META.get("REMOTE_ADDR"),
-        )
-        response = redirect(job.get_absolute_url())
-        if is_guest:
-            guest_job_ids = get_guest_job_ids(self.request)
-            guest_job_ids.append(str(job.id))
-            set_guest_job_ids(response, guest_job_ids)
-            mark_guest_mode(response)
-        return response
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["allow_anonymous_submission"] = is_guest_submission_enabled()
-        if self.request.user.is_authenticated:
-            jobs = self.request.user.jobs.select_related("claimed_by")
-        else:
-            guest_job_ids = get_guest_job_ids(self.request)
-            jobs = Job.objects.filter(
-                id__in=guest_job_ids,
-                owner__username=PUBLIC_OWNER_USERNAME,
-            ).select_related("claimed_by")
-        context["jobs"] = jobs
-        return context
-
-
-class JobDetailView(DetailView):
-    model = Job
-    template_name = "jobs/job_detail.html"
-
-    def dispatch(self, request: HttpRequest, *args, **kwargs):
-        if not request.user.is_authenticated and not is_guest_submission_enabled():
-            messages.error(request, "Анонимная отправка заданий отключена. Войдите в аккаунт.")
-            return redirect("jobs:start")
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_queryset(self):
-        JobService.expire_timed_out_jobs()
-        if self.request.user.is_authenticated:
-            return self.request.user.jobs.select_related("claimed_by")
-        guest_job_ids = get_guest_job_ids(self.request)
-        return Job.objects.filter(
-            id__in=guest_job_ids,
-            owner__username=PUBLIC_OWNER_USERNAME,
-        ).select_related("claimed_by")
-
-
-class JobStatusView(View):
-    """
-    Лёгкий JSON-эндпоинт для polling'а со страницы задачи.
-    Возвращает только поля, нужные для обновления UI без перезагрузки страницы.
-    Права доступа — те же, что у JobDetailView.
-    """
-
-    def get(self, request: HttpRequest, pk) -> JsonResponse:
-        if not request.user.is_authenticated and not is_guest_submission_enabled():
-            return JsonResponse({"detail": "Forbidden"}, status=403)
-
-        if request.user.is_authenticated:
-            qs = request.user.jobs.select_related("claimed_by")
-        else:
-            guest_job_ids = get_guest_job_ids(request)
-            qs = Job.objects.filter(
-                id__in=guest_job_ids,
-                owner__username=PUBLIC_OWNER_USERNAME,
-            ).select_related("claimed_by")
-
-        job = get_object_or_404(qs, pk=pk)
-
-        result_video_url = (
-            request.build_absolute_uri(job.result_video.url) if job.result_video else None
-        )
-
-        return JsonResponse({
-            "status": job.status,
-            "status_display": job.get_status_display(),
-            "claimed_by": str(job.claimed_by) if job.claimed_by else None,
-            "started_at": job.started_at.strftime("%d.%m.%Y %H:%M:%S") if job.started_at else None,
-            "finished_at": job.finished_at.strftime("%d.%m.%Y %H:%M:%S") if job.finished_at else None,
-            "deadline_at": job.deadline_at.strftime("%d.%m.%Y %H:%M:%S") if job.deadline_at else None,
-            "execution_log": job.execution_log,
-            "error_message": job.error_message,
-            "result_video_url": result_video_url,
-        })
+        return settings.FRONTEND_URL.rstrip("/") + "/"
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -295,21 +52,7 @@ class AgentAuthMixin:
 class AgentPayloadMixin:
     @staticmethod
     def serialize_job(request: HttpRequest, job: Job) -> dict:
-        return {
-            "id": str(job.id),
-            "status": job.status,
-            "original_filename": job.original_filename,
-            "download_url": request.build_absolute_uri(
-                reverse("jobs:agent-job-firmware", kwargs={"job_id": job.id})
-            ),
-            "result_url": request.build_absolute_uri(
-                reverse("jobs:agent-job-result", kwargs={"job_id": job.id})
-            ),
-            "detail_url": request.build_absolute_uri(
-                reverse("jobs:agent-job-detail", kwargs={"job_id": job.id})
-            ),
-            "deadline_at": job.deadline_at.isoformat() if job.deadline_at else None,
-        }
+        return serialize_agent_job(request, job)
 
 
 class AgentNextJobView(AgentAuthMixin, AgentPayloadMixin, View):
@@ -349,8 +92,7 @@ class AgentFirmwareDownloadView(AgentAuthMixin, View):
     def get(self, request: HttpRequest, job_id) -> FileResponse:
         job = get_object_or_404(Job.objects.filter(claimed_by=self.agent), pk=job_id)
         logger.debug("Агент скачивает прошивку job_id=%s agent=%s", job.id, self.agent.pk)
-        response = FileResponse(job.firmware.open("rb"), as_attachment=True, filename=job.original_filename)
-        return response
+        return FileResponse(job.firmware.open("rb"), as_attachment=True, filename=job.original_filename)
 
 
 class AgentJobResultView(AgentAuthMixin, View):
@@ -372,3 +114,72 @@ class AgentJobResultView(AgentAuthMixin, View):
             return JsonResponse({"detail": str(exc)}, status=409)
 
         return JsonResponse({"id": str(job.id), "status": job.status})
+
+
+class AgentHeartbeatView(AgentAuthMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request: HttpRequest) -> JsonResponse:
+        SessionService.expire_sessions()
+        JobService.expire_timed_out_jobs()
+        self.agent.touch()
+        session = SessionService.active_for_agent(self.agent)
+        return JsonResponse(
+            {
+                "status": self.agent.computed_status(),
+                "has_session": session is not None,
+            }
+        )
+
+
+class AgentSessionView(AgentAuthMixin, View):
+    http_method_names = ["get"]
+
+    def get(self, request: HttpRequest) -> JsonResponse:
+        session = SessionService.active_for_agent(self.agent)
+        self.agent.touch()
+        if session is None:
+            return JsonResponse({"session": None})
+        commands, has_flash = SessionService.consume_commands(session)
+        flash_url = None
+        if has_flash and session.pending_flash:
+            flash_url = request.build_absolute_uri(
+                reverse("jobs:agent-session-flash", kwargs={"session_id": session.id})
+            )
+        return JsonResponse(
+            {
+                "session": {
+                    "id": str(session.id),
+                    "ends_at": session.ends_at.isoformat(),
+                    "pin_states": session.pin_states,
+                    "commands": commands,
+                    "flash_url": flash_url,
+                    "flash_name": session.pending_flash_name,
+                }
+            }
+        )
+
+
+class AgentSessionFlashView(AgentAuthMixin, View):
+    http_method_names = ["get"]
+
+    def get(self, request: HttpRequest, session_id) -> FileResponse:
+        session = get_object_or_404(
+            StandSession.objects.filter(agent=self.agent),
+            pk=session_id,
+        )
+        if not session.pending_flash:
+            return JsonResponse({"detail": "Нет файла прошивки."}, status=404)
+        filename = session.pending_flash_name or "session.svf"
+        return FileResponse(session.pending_flash.open("rb"), as_attachment=True, filename=filename)
+
+
+class AgentInstructionDownloadView(AgentAuthMixin, View):
+    http_method_names = ["get"]
+
+    def get(self, request: HttpRequest, job_id) -> FileResponse:
+        job = get_object_or_404(Job.objects.filter(claimed_by=self.agent), pk=job_id)
+        if not job.instruction:
+            return JsonResponse({"detail": "Нет файла инструкции."}, status=404)
+        filename = job.instruction_filename or "instruction.txt"
+        return FileResponse(job.instruction.open("rb"), as_attachment=True, filename=filename)

@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 
 from .api import ServerClient
-from .config import AgentConfig, LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT
+from .config import AgentConfig, LOG_BACKUP_COUNT, LOG_FILE, LOG_MAX_BYTES
 from .env import load_env
-from .hardware import CameraStub, HardwareExecutor, ProgrammerStub
+from .hardware import CameraStub, HardwareExecutor, ProgrammerStub, RealCamera, RealProgrammer, StubGpio
 from .logging_setup import setup_logging
 from .worker import AgentWorker
 
@@ -15,16 +15,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stub-hardware",
         action="store_true",
-        help="use stub programmer and camera for development without FPGA board",
+        help="use stub programmer, gpio and camera (default)",
+    )
+    parser.add_argument(
+        "--real-hardware",
+        action="store_true",
+        help="use OpenOCD programmer and V4L2 camera",
     )
     return parser
 
 
 def main() -> int:
     load_env()
-
-    # Логирование настраивается до всего остального, чтобы ни одно сообщение
-    # (включая предупреждение об отсутствии cv2) не было потеряно.
     setup_logging(
         log_file=LOG_FILE,
         max_bytes=LOG_MAX_BYTES,
@@ -33,18 +35,31 @@ def main() -> int:
 
     parser = build_parser()
     args = parser.parse_args()
-
     config = AgentConfig.from_env()
-
     client = ServerClient(server_url=config.server_url, token=config.token)
-    if args.stub_hardware:
+    gpio = StubGpio()
+
+    if args.real_hardware:
+        executor = HardwareExecutor(
+            programmer=RealProgrammer(),
+            camera=CameraStub(),
+            gpio=gpio,
+        )
+        _ = RealCamera
+    else:
         executor = HardwareExecutor(
             programmer=ProgrammerStub(),
             camera=CameraStub(),
+            gpio=gpio,
         )
-    else:
-        executor = HardwareExecutor()
-    worker = AgentWorker(config=config, client=client, executor=executor)
+
+    worker = AgentWorker(
+        config=config,
+        client=client,
+        executor=executor,
+        gpio=gpio,
+        token=config.token,
+    )
     worker.run()
     return 0
 

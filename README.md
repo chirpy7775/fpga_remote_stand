@@ -1,40 +1,18 @@
-# Remote stand skeleton
+# Remote FPGA testbed
 
-Минималистичный каркас проекта для “удалённого стенда” с двумя частями:
+Сервер (Django) + агенты на Raspberry Pi. Сейчас железо в stub-режиме: можно разрабатывать без платы.
 
-- `server/` — Django-сервер с кабинетом пользователя и API для агента;
-- `agent/` — отдельный исполнитель, который забирает задачу, скачивает прошивку, запускает либо реальную интеграцию с железом, либо заглушки, и отправляет результат обратно.
+## Что умеет этот срез
 
-## Что уже есть
+- асинхронная задача: `.svf` + `.txt` lite_lang → очередь конкретного стенда → видео-результат;
+- синхронная сессия: занять стенд, JPEG-стрим, кнопки пинов 1–8, заливка SVF;
+- несколько агентов на один сервер, heartbeat, exclusive lock;
+- UI как у CloudBurner (React + Tailwind);
+- гостевая отправка заявок без аккаунта (история в cookie браузера).
 
-- регистрация, вход, выход;
-- загрузка файла прошивки и создание задачи;
-- история задач и карточка результата;
-- статусы: `ожидает / выполняется / завершено / ошибка`;
-- серверный API для агента:
-  - взять следующую задачу;
-  - скачать файл прошивки;
-  - отправить итог выполнения;
-  - посмотреть метаданные задачи;
-- защита от двойной выдачи одной задачи;
-- лимит времени выполнения на стороне сервера;
-- агентская часть с двумя режимами:
-  - обычный запуск для работы с реальным OpenOCD и камерой;
-  - `--stub-hardware` для разработки без платы.
+## Запуск
 
-## Структура
-
-```text
-remote-stand-skeleton/
-├── server/
-└── agent/
-```
-
-## Быстрый запуск
-
-Файл `.env` уже создан в корне проекта и подхватывается автоматически и сервером, и агентом.
-
-Сначала сервер:
+Терминал 1 — сервер:
 
 ```bash
 cd server
@@ -42,46 +20,48 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py create_agent stand-1
+python manage.py create_agent stand-2
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Потом агент в отдельном терминале.
+`:8000` — только API, админка и агенты. Интерфейс — на `:5173`.
 
-Для разработки без платы:
+Токены агентов выведет `create_agent`. Подставьте в `.env` или в окружение.
+
+Терминал 2 — фронт:
+
+```bash
+cd server/frontend
+npm install
+npm run dev
+```
+
+Открыть http://127.0.0.1:5173
+
+Терминал 3/4 — агенты (stub):
 
 ```bash
 cd agent
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m remote_agent --stub-hardware
+REMOTE_STAND_SERVER_URL=http://127.0.0.1:8000 REMOTE_STAND_AGENT_TOKEN=<token-stand-1> python -m remote_agent --stub-hardware
 ```
 
-Для запуска с реальным железом:
+Второй агент — с токеном stand-2.
 
-```bash
-cd agent
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m remote_agent
+Примеры файлов: `server/examples/blink.svf`, `server/examples/blink_gpio.txt`.
+
+## Инструкция GPIO
+
+```
+pin 1 high
+write_frame 10
+pin 1 low
+write_frame 10
 ```
 
-После этого:
+Пины 1–8. `write_frame` — задержка в кадрах stub-камеры.
 
-1. открыть сервер в браузере;
-2. зарегистрировать пользователя;
-3. загрузить файл прошивки;
-4. запустить агент;
-5. дождаться результата.
-
-## Режимы агента
-
-В `agent/remote_agent/hardware.py` есть оба варианта:
-
-- `ProgrammerStub`
-- `CameraStub`
-- `RealProgrammer`
-- `RealCamera`
-
-Флаг `--stub-hardware` заставляет агента использовать `ProgrammerStub` и `CameraStub`, чтобы можно было вести разработку без FPGA-платы и камеры.
+Реальное железо на Pi — следующий этап (`--real-hardware`, OpenOCD, lgpio, V4L2).
