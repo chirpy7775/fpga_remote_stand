@@ -1,0 +1,43 @@
+# По очереди зажечь LEDR0..LEDR7, потом все сразу (должен загореться ещё LEDR8).
+pin 1 high
+write_frame 15
+pin 1 low
+pin 2 high
+write_frame 15
+pin 2 low
+pin 3 high
+write_frame 15
+pin 3 low
+pin 4 high
+write_frame 15
+pin 4 low
+pin 5 high
+write_frame 15
+pin 5 low
+pin 6 high
+write_frame 15
+pin 6 low
+pin 7 high
+write_frame 15
+pin 7 low
+pin 8 high
+write_frame 15
+pin 8 low
+pin 1 high
+pin 2 high
+pin 3 high
+pin 4 high
+pin 5 high
+pin 6 high
+pin 7 high
+pin 8 high
+write_frame 20
+pin 1 low
+pin 2 low
+pin 3 low
+pin 4 low
+pin 5 low
+pin 6 low
+pin 7 low
+pin 8 low
+write_frame 10

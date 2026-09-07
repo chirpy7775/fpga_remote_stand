@@ -35,6 +35,10 @@ write_frame 10`}</pre>
         </section>
         <section>
           <h2 className="text-xl font-semibold text-primary-700">Пины Raspberry Pi ↔ DE10-Lite</h2>
+          <p>
+            Колонка «GPIO DE10» — это индекс <code>GPIO_[n]</code> на JP1, не номер штыря.
+            GPIO_19 сидит на контакте 22. Контакт 29 на гребенке — это 3.3&nbsp;V, его к малине не сажать. 5&nbsp;V (контакт 11) тоже нет.
+          </p>
           <table className="w-full text-sm border">
             <thead className="bg-primary-100">
               <tr>

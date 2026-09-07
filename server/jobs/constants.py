@@ -4,7 +4,8 @@ HEARTBEAT_TTL_SECONDS = 15
 SESSION_DURATION_SECONDS = 15 * 60
 PIN_COUNT = 8
 
-# Логический пин 1..8 → BCM GPIO Raspberry Pi и пин DE10-Lite (JP1).
+# Логический пин 1..8 → BCM Raspberry Pi и GPIO_[n] на DE10-Lite JP1
+# (GPIO_19 = контакт 22, не путать с номером штыря: JP1 pin 29 = 3.3V).
 PIN_MAP = [
     {"index": 1, "rpi_bcm": 21, "de10_gpio": 19, "fpga": "PIN_W11"},
     {"index": 2, "rpi_bcm": 20, "de10_gpio": 21, "fpga": "PIN_AA10"},

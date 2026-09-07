@@ -1,0 +1,53 @@
+# Official Terasic DE10-Lite (MAX 10 10M50DAF484C7G).
+# Pinout: DE10-Lite User Manual, LED table + GPIO JP1 Table 3-7 / DE10_Lite.qsf
+# GPIO lines from the Pi are INPUTS only — FPGA does not drive JP1.
+
+set_global_assignment -name FAMILY "MAX 10 FPGA"
+set_global_assignment -name DEVICE 10M50DAF484C7G
+set_global_assignment -name DEVICE_FILTER_PACKAGE FBGA
+set_global_assignment -name TOP_LEVEL_ENTITY gpio_led_test
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name VERILOG_FILE gpio_led_test.v
+set_global_assignment -name SDC_FILE gpio_led_test.sdc
+
+# Do not drive unused FPGA pins (HEX, SDRAM, Arduino header, rest of JP1).
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name ENABLE_CONFIGURATION_PINS OFF
+set_global_assignment -name ENABLE_BOOT_SEL_PIN OFF
+set_global_assignment -name ENABLE_OCT_DONE OFF
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+
+# MAX10_CLK1_50
+set_location_assignment PIN_P11 -to clk_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50
+
+# JP1 GPIO_[19,21,23,25,27,29,31,33] = FPGA pins below = header pins 22,24,26,28,32,34,36,38.
+# Not JP1 pin numbers 19/21/… — pin 29 on the header is 3.3V.
+set_location_assignment PIN_W11  -to gpio_in[0]
+set_location_assignment PIN_AA10 -to gpio_in[1]
+set_location_assignment PIN_Y8   -to gpio_in[2]
+set_location_assignment PIN_Y7   -to gpio_in[3]
+set_location_assignment PIN_Y6   -to gpio_in[4]
+set_location_assignment PIN_Y5   -to gpio_in[5]
+set_location_assignment PIN_Y4   -to gpio_in[6]
+set_location_assignment PIN_Y3   -to gpio_in[7]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio_in[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to gpio_in[*]
+set_instance_assignment -name SCHMITT_TRIGGER ON -to gpio_in[*]
+
+# On-board LEDR0..LEDR9 (manual Table 3-3 / official .qsf)
+set_location_assignment PIN_A8  -to ledr[0]
+set_location_assignment PIN_A9  -to ledr[1]
+set_location_assignment PIN_A10 -to ledr[2]
+set_location_assignment PIN_B10 -to ledr[3]
+set_location_assignment PIN_D13 -to ledr[4]
+set_location_assignment PIN_C13 -to ledr[5]
+set_location_assignment PIN_E14 -to ledr[6]
+set_location_assignment PIN_D14 -to ledr[7]
+set_location_assignment PIN_A11 -to ledr[8]
+set_location_assignment PIN_B11 -to ledr[9]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ledr[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to ledr[*]
+set_instance_assignment -name SLEW_RATE 1 -to ledr[*]
