@@ -4,18 +4,20 @@ import logging
 import threading
 import time
 
-from websocket import WebSocketConnectionClosedException, create_connection
+from websocket import create_connection
 
-from .frames import render_stub_frame
-from .hardware import GpioDriver
+from .hardware import Camera, GpioDriver
 
 logger = logging.getLogger(__name__)
 
 
 class CameraStreamer:
-    def __init__(self, *, url: str, gpio: GpioDriver, fps: int = 8) -> None:
+    """Гонит кадры камеры в WebSocket сервера, пока идёт синхронная сессия."""
+
+    def __init__(self, *, url: str, gpio: GpioDriver, camera: Camera, fps: int = 8) -> None:
         self.url = url
         self.gpio = gpio
+        self.camera = camera
         self.interval = 1.0 / max(fps, 1)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -30,27 +32,26 @@ class CameraStreamer:
     def stop(self) -> None:
         self._stop.set()
         if self._thread:
-            self._thread.join(timeout=2)
+            self._thread.join(timeout=3)
             self._thread = None
 
     def _run(self) -> None:
-        tick = 0
         while not self._stop.is_set():
-            ws = None
+            connection = None
             try:
-                ws = create_connection(self.url, timeout=10)
+                connection = create_connection(self.url, timeout=10)
                 logger.info("Камера-стрим подключён")
                 while not self._stop.is_set():
-                    frame = render_stub_frame(self.gpio.snapshot(), tick)
-                    ws.send_binary(frame)
-                    tick += 1
+                    frame = self.camera.live_frame(self.gpio.snapshot())
+                    if frame:
+                        connection.send_binary(frame)
                     time.sleep(self.interval)
-            except (OSError, WebSocketConnectionClosedException, Exception) as exc:
+            except Exception as exc:
                 logger.warning("Стрим камеры: %s", exc)
-                time.sleep(1.5)
+                self._stop.wait(1.5)
             finally:
-                if ws is not None:
+                if connection is not None:
                     try:
-                        ws.close()
+                        connection.close()
                     except Exception:
-                        pass
+                        logger.debug("Не удалось закрыть стрим", exc_info=True)

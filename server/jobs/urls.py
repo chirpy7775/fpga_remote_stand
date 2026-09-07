@@ -16,6 +16,7 @@ from .api import (
     StandListView,
     TakeStandView,
 )
+from .monitor import MonitorJobDetailView, MonitorOverviewView
 from .views import (
     AgentFirmwareDownloadView,
     AgentHeartbeatView,
@@ -62,4 +63,6 @@ urlpatterns = [
     path("api/jobs/", JobListCreateView.as_view(), name="api-jobs"),
     path("api/jobs/<uuid:pk>/", JobDetailApiView.as_view(), name="api-job-detail"),
     path("api/pins/", PinMapView.as_view(), name="api-pins"),
+    path("api/monitor/overview/", MonitorOverviewView.as_view(), name="api-monitor-overview"),
+    path("api/monitor/jobs/<uuid:pk>/", MonitorJobDetailView.as_view(), name="api-monitor-job"),
 ]

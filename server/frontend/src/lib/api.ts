@@ -2,6 +2,7 @@ export type User = {
   id: number;
   username: string;
   email: string;
+  is_staff: boolean;
 };
 
 export type Stand = {
@@ -40,6 +41,65 @@ export type Session = {
   remaining_seconds: number;
   pin_states: boolean[];
   pending_flash_name: string;
+};
+
+export type MonitorJob = {
+  id: string;
+  status: string;
+  status_display: string;
+  owner: string;
+  is_guest: boolean;
+  original_filename: string;
+  instruction_filename: string;
+  stand: string | null;
+  claimed_by: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string;
+  firmware_url: string | null;
+  instruction_url: string | null;
+  result_video_url: string | null;
+  execution_log?: string;
+};
+
+export type MonitorSession = {
+  id: string;
+  owner: string;
+  is_guest: boolean;
+  stand: string;
+  started_at: string;
+  ends_at: string;
+  remaining_seconds: number;
+  pin_states: boolean[];
+  pending_flash_name: string;
+};
+
+export type MonitorStand = {
+  id: number;
+  name: string;
+  status: "offline" | "idle" | "busy";
+  online: boolean;
+  is_active: boolean;
+  last_seen_at: string | null;
+  current_session: MonitorSession | null;
+  current_job: MonitorJob | null;
+};
+
+export type MonitorOverview = {
+  generated_at: string;
+  totals: {
+    stands: number;
+    online: number;
+    active_sessions: number;
+    running_jobs: number;
+    waiting_jobs: number;
+    jobs_last_day: number;
+    errors_last_day: number;
+  };
+  stands: MonitorStand[];
+  sessions: MonitorSession[];
+  jobs: MonitorJob[];
 };
 
 function getCsrf(): string {
@@ -103,4 +163,6 @@ export const api = {
     }),
   flashSession: (form: FormData) =>
     request<{ session: Session }>("/api/session/flash/", { method: "POST", body: form }),
+  monitorOverview: () => request<MonitorOverview>("/api/monitor/overview/"),
+  monitorJob: (id: string) => request<{ job: MonitorJob }>(`/api/monitor/jobs/${id}/`),
 };

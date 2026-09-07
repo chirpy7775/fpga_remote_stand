@@ -1,0 +1,24 @@
+[Unit]
+Description=FPGA Testbed stand agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=user
+Group=user
+WorkingDirectory=/home/user/fpga-stand/agent
+EnvironmentFile=/home/user/fpga-stand/agent/.env
+ExecStart=/home/user/fpga-stand/.venv/bin/python -m remote_agent --real-hardware
+Restart=always
+RestartSec=5
+
+# Агенту нужны только USB-Blaster, камера и GPIO — остальное прикрываем.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/user/fpga-stand/agent
+
+[Install]
+WantedBy=multi-user.target

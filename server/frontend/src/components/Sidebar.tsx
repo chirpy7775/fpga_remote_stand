@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Cpu, BarChartHorizontal, Home, Book } from "lucide-react";
+import { Cpu, BarChartHorizontal, Home, Book, Activity } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const items = [
@@ -9,9 +9,12 @@ const items = [
   { to: "/docs/fpga", label: "Документация", icon: Book },
 ];
 
+const staffItems = [{ to: "/monitor", label: "Мониторинг", icon: Activity }];
+
 export default function Sidebar() {
   const { user, logout, allowAnonymous } = useAuth();
   const navigate = useNavigate();
+  const links = user?.is_staff ? [...items, ...staffItems] : items;
 
   return (
     <aside className="h-screen overflow-y-auto bg-white border-r border-muted px-4 py-6 shadow-sm flex flex-col w-64 shrink-0">
@@ -26,7 +29,7 @@ export default function Sidebar() {
       </NavLink>
 
       <nav className="flex-1 space-y-1">
-        {items.map(({ to, label, icon: Icon }) => (
+        {links.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

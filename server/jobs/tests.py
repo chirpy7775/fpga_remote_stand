@@ -385,6 +385,91 @@ class SessionLockTests(TestCase):
         self.assertIsNone(SessionService.active_for_user(self.user))
 
 
+class MonitorApiTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username="admin", password="pw12345", is_staff=True)
+        self.student = User.objects.create_user(username="student", password="pw12345")
+        self.agent = Agent.objects.create(name="stand-1")
+        self.agent.touch()
+
+    def test_requires_staff(self):
+        url = reverse("jobs:api-monitor-overview")
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.client.force_login(self.student)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_overview_reports_who_uploads_and_who_holds_the_stand(self):
+        JobService.create_job(
+            owner=self.student, firmware=svf("mine.svf"), instruction=txt(), target_agent=self.agent
+        )
+        SessionService.take(user=self.student, agent=self.agent, duration_seconds=300)
+
+        self.client.force_login(self.staff)
+        payload = self.client.get(reverse("jobs:api-monitor-overview")).json()
+
+        self.assertEqual(payload["totals"]["active_sessions"], 1)
+        self.assertEqual(payload["totals"]["waiting_jobs"], 1)
+        self.assertEqual(payload["jobs"][0]["owner"], "student")
+        self.assertEqual(payload["jobs"][0]["original_filename"], "mine.svf")
+        self.assertIsNotNone(payload["jobs"][0]["firmware_url"])
+
+        stand = payload["stands"][0]
+        self.assertEqual(stand["name"], "stand-1")
+        self.assertEqual(stand["current_session"]["owner"], "student")
+        self.assertIsNone(stand["current_job"])
+
+    def test_overview_marks_guest_uploads(self):
+        self.client.post(
+            reverse("jobs:api-jobs"),
+            {"target_agent": self.agent.id, "firmware": svf(), "instruction": txt()},
+        )
+        self.client.force_login(self.staff)
+        job = self.client.get(reverse("jobs:api-monitor-overview")).json()["jobs"][0]
+        self.assertTrue(job["is_guest"])
+        self.assertEqual(job["owner"], "гость")
+
+    def test_overview_shows_running_job_on_the_stand(self):
+        JobService.create_job(
+            owner=self.student, firmware=svf(), instruction=txt(), target_agent=self.agent
+        )
+        JobService.claim_next_job(agent=self.agent)
+        self.client.force_login(self.staff)
+        payload = self.client.get(reverse("jobs:api-monitor-overview")).json()
+        self.assertEqual(payload["totals"]["running_jobs"], 1)
+        self.assertEqual(payload["stands"][0]["current_job"]["owner"], "student")
+
+    def test_job_detail_returns_full_log(self):
+        job = JobService.create_job(
+            owner=self.student, firmware=svf(), instruction=txt(), target_agent=self.agent
+        )
+        JobService.claim_next_job(agent=self.agent)
+        JobService.complete_job(
+            job=job,
+            agent=self.agent,
+            completion=JobCompletion(status=Job.Status.COMPLETED, execution_log="строка лога"),
+        )
+        self.client.force_login(self.staff)
+        detail = self.client.get(reverse("jobs:api-monitor-job", kwargs={"pk": job.id}))
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["job"]["execution_log"], "строка лога")
+
+    def test_job_detail_denied_for_students(self):
+        job = JobService.create_job(
+            owner=self.student, firmware=svf(), instruction=txt(), target_agent=self.agent
+        )
+        self.client.force_login(self.student)
+        detail = self.client.get(reverse("jobs:api-monitor-job", kwargs={"pk": job.id}))
+        self.assertEqual(detail.status_code, 403)
+
+    def test_me_exposes_staff_flag(self):
+        self.client.force_login(self.staff)
+        self.assertTrue(self.client.get(reverse("jobs:api-me")).json()["user"]["is_staff"])
+        self.client.force_login(self.student)
+        self.assertFalse(self.client.get(reverse("jobs:api-me")).json()["user"]["is_staff"])
+
+
 class LegacyHtmlRemovedTests(TestCase):
     def test_old_pages_are_gone(self):
         self.assertEqual(self.client.get("/dashboard/").status_code, 404)

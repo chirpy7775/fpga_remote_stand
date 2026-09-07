@@ -25,6 +25,15 @@ def json_error(message: str, status: int = 400) -> JsonResponse:
     return JsonResponse({"detail": message}, status=status)
 
 
+def user_payload(user) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_staff": user.is_staff,
+    }
+
+
 class ApiAuthMixin:
     def dispatch(self, request: HttpRequest, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -41,14 +50,8 @@ class CsrfView(View):
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class MeView(View):
     def get(self, request: HttpRequest) -> JsonResponse:
-        user_payload = None
-        if request.user.is_authenticated:
-            user_payload = {
-                "id": request.user.id,
-                "username": request.user.username,
-                "email": request.user.email,
-            }
-        return JsonResponse({"user": user_payload, "allow_anonymous": is_anon_enabled()})
+        payload = user_payload(request.user) if request.user.is_authenticated else None
+        return JsonResponse({"user": payload, "allow_anonymous": is_anon_enabled()})
 
 
 class LoginView(View):
@@ -60,7 +63,7 @@ class LoginView(View):
         if user is None:
             return json_error("Неверный логин или пароль.", 400)
         login(request, user)
-        return JsonResponse({"user": {"id": user.id, "username": user.username, "email": user.email}})
+        return JsonResponse({"user": user_payload(user)})
 
 
 class LogoutView(View):
@@ -81,7 +84,7 @@ class RegisterView(View):
             return json_error("Такой пользователь уже есть.")
         user = User.objects.create_user(username=username, password=password, email=email)
         login(request, user)
-        return JsonResponse({"user": {"id": user.id, "username": user.username, "email": user.email}}, status=201)
+        return JsonResponse({"user": user_payload(user)}, status=201)
 
 
 class StandListView(View):
