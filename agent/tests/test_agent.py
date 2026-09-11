@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -487,6 +488,35 @@ class LiteLangAgentTests(unittest.TestCase):
     def test_accepts_the_shipped_example(self):
         commands = parse_instruction(EXAMPLE_SCRIPT.read_text(encoding="utf-8"))
         self.assertGreater(len(commands), 10)
+
+
+class ConfigTests(unittest.TestCase):
+    def test_real_hardware_flag_from_env(self):
+        from argparse import Namespace
+
+        from remote_agent.config import AgentConfig
+        from remote_agent.__main__ import resolve_real_hardware
+
+        with unittest.mock.patch.dict(
+            "os.environ",
+            {
+                "REMOTE_STAND_SERVER_URL": "http://10.0.0.1:8000/",
+                "REMOTE_STAND_AGENT_TOKEN": "tok",
+                "REMOTE_STAND_REAL_HARDWARE": "1",
+                "REMOTE_STAND_CAMERA_DEVICE": "/dev/video2",
+            },
+            clear=False,
+        ):
+            config = AgentConfig.from_env()
+        self.assertEqual(config.server_url, "http://10.0.0.1:8000")
+        self.assertTrue(config.real_hardware)
+        self.assertEqual(config.camera_device, "/dev/video2")
+        self.assertTrue(
+            resolve_real_hardware(Namespace(real_hardware=False, stub_hardware=False), config)
+        )
+        self.assertFalse(
+            resolve_real_hardware(Namespace(real_hardware=False, stub_hardware=True), config)
+        )
 
 
 if __name__ == "__main__":

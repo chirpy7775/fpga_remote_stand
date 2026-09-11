@@ -2,25 +2,18 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 from django.http import FileResponse, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import RedirectView
 
 from .models import Agent, Job, StandSession
 from .serializers import serialize_agent_job
 from .services import JobCompletion, JobService, SessionService
 
 logger = logging.getLogger("jobs")
-
-
-class HomeView(RedirectView):
-    def get_redirect_url(self, *args, **kwargs):
-        return settings.FRONTEND_URL.rstrip("/") + "/"
 
 
 @method_decorator(csrf_exempt, name="dispatch")

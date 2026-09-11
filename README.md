@@ -1,114 +1,70 @@
 # Remote FPGA testbed
 
-Сервер (Django) + агенты на Raspberry Pi, которые шьют настоящую плату
-Terasic DE10-Lite и снимают её на камеру.
+Сервер и агент — два независимых куска. Токен стенда придумываешь сам и вписываешь в оба `.env`.
+
+## Оба на одной малине
+
+```bash
+git clone <этот-репозиторий>
+cd fpga_remote_stand
+
+# придумай строку-токен, например: my-lab-token
+nano server/.env.example   # можно сразу после install
+
+./server/install.sh
+# открой server/.env и поставь:
+#   AGENT_TOKEN_stand-1=my-lab-token
+
+./agent/install.sh
+# открой agent/.env и поставь:
+#   REMOTE_STAND_SERVER_URL=http://127.0.0.1:8000
+#   REMOTE_STAND_AGENT_TOKEN=my-lab-token
+
+./server/run.sh          # в одном терминале
+./agent/run.sh           # в другом
+```
+
+Браузер: `http://<ip-малины>:8000`
+
+Автозапуск после ребута — если нужен, скопируй unit, который напечатал `install.sh`:
+
+```bash
+sudo cp server/fpga-server.service /etc/systemd/system/
+sudo cp agent/fpga-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fpga-server fpga-agent
+```
+
+Не нужен автозапуск — unit не копируй. Убрать: `systemctl disable --now …` и удалить файл из `/etc/systemd/system/`.
+
+## Сервер на компе, агент на малине
+
+На компе:
+
+```bash
+./server/install.sh
+# в server/.env: AGENT_TOKEN_stand-1=my-lab-token
+./server/run.sh
+```
+
+На малине (клонируй репозиторий или скопируй каталог `agent/`):
+
+```bash
+./agent/install.sh
+# в agent/.env:
+#   REMOTE_STAND_SERVER_URL=http://192.168.2.34:8000
+#   REMOTE_STAND_AGENT_TOKEN=my-lab-token
+./agent/run.sh
+```
+
+IP в URL — тот, по которому малина видит комп. Токен должен совпасть с `AGENT_TOKEN_stand-1`.
 
 ## Что умеет
 
-- **асинхронная задача**: `.svf` + `.txt` lite_lang → очередь конкретного стенда → видео результата;
-- **синхронная сессия**: занять стенд, живой JPEG-стрим с камеры, кнопки пинов 1–8, заливка SVF;
-- **реальное железо**: OpenOCD + USB-Blaster, GPIO через lgpio, запись V4L2 → H.264;
-- **stub-режим**: то же самое без платы, для разработки;
-- несколько агентов на один сервер, heartbeat, эксклюзивная блокировка стенда;
-- гостевая отправка заявок без аккаунта (история в cookie браузера);
-- **панель мониторинга** `/monitor` для персонала: кто занял стенд, что выполняется,
-  кто и что загружал, логи и видео заявок.
+- асинхронная задача: `.svf` + `.txt` → видео с камеры;
+- синхронная сессия: стрим, пины 1–8, заливка SVF;
+- панель `/monitor` (нужен staff).
 
-## Запуск
+Пример прошивки: `server/examples/gpio_leds/`. Распиновка: `/docs/fpga`.
 
-Терминал 1 — сервер:
-
-```bash
-cd server
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py create_agent stand-1
-python manage.py createsuperuser          # нужен для /monitor
-python manage.py runserver 0.0.0.0:8000   # 0.0.0.0 — чтобы дотянулся агент с Pi
-```
-
-Если сервер слушает не только localhost, перечислите адреса:
-
-```bash
-export DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,192.168.2.34
-export DJANGO_CSRF_TRUSTED_ORIGINS=http://127.0.0.1:5173,http://192.168.2.34:5173
-```
-
-`:8000` — только API, админка и агенты. Интерфейс — на `:5173`.
-Токены агентов выведет `create_agent`.
-
-Терминал 2 — фронт:
-
-```bash
-cd server/frontend
-npm install
-npm run dev
-```
-
-Открыть http://127.0.0.1:5173
-
-Терминал 3 — агент без платы:
-
-```bash
-cd agent
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-REMOTE_STAND_SERVER_URL=http://127.0.0.1:8000 \
-REMOTE_STAND_AGENT_TOKEN=<token-stand-1> \
-python -m remote_agent --stub-hardware
-```
-
-## Реальный стенд на Raspberry Pi
-
-Подробности — в [`agent/README.md`](agent/README.md). Коротко:
-
-```bash
-sudo apt install openocd ffmpeg python3-lgpio
-rsync -a agent/ user@<pi>:/home/user/fpga-stand/agent/
-ssh user@<pi>
-cd /home/user/fpga-stand
-python3 -m venv --system-site-packages .venv   # lgpio берём из apt
-.venv/bin/pip install -r agent/requirements.txt
-```
-
-Настройки — в `agent/.env`, автозапуск — юнитом `agent/utils/fpga-agent.service`:
-
-```bash
-sudo cp agent/utils/fpga-agent.service /etc/systemd/system/
-sudo systemctl enable --now fpga-agent
-journalctl -u fpga-agent -f
-```
-
-## Инструкция GPIO (lite_lang)
-
-```
-pin 1 high
-write_frame 10
-pin 1 low
-write_frame 10
-```
-
-Пины 1–8. `write_frame N` — выдержка длиной `N / 10` секунды: столько времени
-камера снимает плату в текущем состоянии пинов.
-
-Готовый пример под DE10-Lite: [`server/examples/gpio_leds/`](server/examples/gpio_leds/)
-(проект Quartus, скрипт `gpio_leds.txt`, собранный `gpio_led_test.svf`).
-Распиновка и предупреждения по железу — на странице `/docs/fpga`.
-
-## Тесты
-
-```bash
-cd server && python manage.py test jobs      # 44 теста
-cd agent  && python -m unittest discover -s tests -t .   # 26 тестов
-```
-
-Проверки на живом стенде (нужен запущенный сервер, фронт и агент):
-
-```bash
-cd server
-pip install -r requirements-dev.txt
-python scripts/check_sync_session.py   # сессия: стрим, пины, прошивка
-python scripts/check_ui.py             # скриншоты страниц + права на /monitor
-```
+Разработка фронта на Vite (`npm run dev` в `server/frontend`) — отдельно, не часть установки.

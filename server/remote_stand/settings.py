@@ -64,6 +64,15 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# Любой адрес из ALLOWED_HOSTS тоже должен проходить CSRF (фронт на :5173 и API на :8000).
+for _host in ALLOWED_HOSTS:
+    _name = _host.split(":")[0].strip()
+    if not _name or _name == "*":
+        continue
+    for _origin in (f"http://{_name}:5173", f"http://{_name}:8000"):
+        if _origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_origin)
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

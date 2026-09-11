@@ -4,10 +4,12 @@ from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management.base import CommandError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from .agent_tokens import sync_agents_from_env
 from .lite_lang import InstructionError, PinCommand, WriteFrameCommand, parse_instruction
 from .models import Agent, Job, StandSession
 from .services import JobCompletion, JobService, SessionService
@@ -385,6 +387,33 @@ class SessionLockTests(TestCase):
         self.assertIsNone(SessionService.active_for_user(self.user))
 
 
+class SyncAgentsTests(TestCase):
+    def test_creates_and_updates_from_env(self):
+        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-one"})
+        self.assertEqual(messages, ["создан stand-1"])
+        agent = Agent.objects.get(name="stand-1")
+        self.assertEqual(agent.token, "token-one")
+
+        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-two"})
+        self.assertEqual(messages, ["обновлён токен stand-1"])
+        agent.refresh_from_db()
+        self.assertEqual(agent.token, "token-two")
+
+        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-two"})
+        self.assertEqual(messages, ["без изменений stand-1"])
+
+    def test_rejects_duplicate_tokens(self):
+        with self.assertRaises(CommandError):
+            sync_agents_from_env(
+                {"AGENT_TOKEN_stand-1": "same", "AGENT_TOKEN_stand-2": "same"}
+            )
+
+    def test_rejects_token_owned_by_another_agent(self):
+        Agent.objects.create(name="stand-1", token="taken")
+        with self.assertRaises(CommandError):
+            sync_agents_from_env({"AGENT_TOKEN_stand-2": "taken"})
+
+
 class MonitorApiTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="admin", password="pw12345", is_staff=True)
@@ -474,10 +503,17 @@ class LegacyHtmlRemovedTests(TestCase):
     def test_old_pages_are_gone(self):
         self.assertEqual(self.client.get("/dashboard/").status_code, 404)
         self.assertEqual(self.client.get("/start/").status_code, 404)
-        self.assertEqual(self.client.get("/register/").status_code, 404)
         self.assertEqual(self.client.get("/accounts/login/").status_code, 404)
 
     def test_root_redirects_to_frontend(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
         response = self.client.get("/")
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.startswith("http://127.0.0.1:5173"))
+        dist = Path(settings.BASE_DIR) / "frontend" / "dist" / "index.html"
+        if dist.is_file():
+            self.assertEqual(response.status_code, 200)
+        else:
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response.url.startswith("http://127.0.0.1:5173"))

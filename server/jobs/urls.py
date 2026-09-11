@@ -17,6 +17,7 @@ from .api import (
     TakeStandView,
 )
 from .monitor import MonitorJobDetailView, MonitorOverviewView
+from .spa import HomeView
 from .views import (
     AgentFirmwareDownloadView,
     AgentHeartbeatView,
@@ -26,7 +27,6 @@ from .views import (
     AgentNextJobView,
     AgentSessionFlashView,
     AgentSessionView,
-    HomeView,
 )
 
 app_name = "jobs"

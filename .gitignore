@@ -24,8 +24,12 @@ server/frontend/dist/
 agent.log
 server/logs/
 
-# Quartus build artifacts (db/, output_files/, архивы проектов)
-server/examples/*.zip
+.run/
+.venv-agent/
+.env
+server/.env
+agent/.env
+server/.setup_key
 server/examples/**/db/
 server/examples/**/incremental_db/
 server/examples/**/output_files/

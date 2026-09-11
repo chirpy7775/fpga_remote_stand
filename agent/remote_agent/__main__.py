@@ -22,30 +22,38 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--stub-hardware",
         action="store_true",
-        help="программатор, GPIO и камера — заглушки (режим по умолчанию)",
+        help="программатор, GPIO и камера — заглушки",
     )
     mode.add_argument(
         "--real-hardware",
         action="store_true",
-        help="реальное железо: OpenOCD, lgpio, камера V4L2",
+        help="реальное железо: OpenOCD, lgpio, камера V4L2; иначе берётся REMOTE_STAND_REAL_HARDWARE из .env",
     )
     parser.add_argument(
         "--camera-device",
-        default="/dev/video0",
-        help="устройство камеры для --real-hardware (по умолчанию /dev/video0)",
+        default=None,
+        help="устройство камеры для --real-hardware (по умолчанию из .env или /dev/video0)",
     )
     return parser
 
 
-def build_hardware(args, config: AgentConfig) -> tuple[Programmer, GpioDriver, Camera]:
-    if not args.real_hardware:
+def resolve_real_hardware(args, config: AgentConfig) -> bool:
+    if args.real_hardware:
+        return True
+    if args.stub_hardware:
+        return False
+    return config.real_hardware
+
+
+def build_hardware(real_hardware: bool, camera_device: str, config: AgentConfig) -> tuple[Programmer, GpioDriver, Camera]:
+    if not real_hardware:
         return ProgrammerStub(), StubGpio(), StubCamera()
 
-    _check_real_prerequisites(args.camera_device)
+    _check_real_prerequisites(camera_device)
     return (
         RealProgrammer(),
         RealGpio(),
-        RealCamera(device=args.camera_device, workspace=config.workspace),
+        RealCamera(device=camera_device, workspace=config.workspace),
     )
 
 
@@ -72,8 +80,10 @@ def main() -> int:
         logger.error("[AGENT] Не задан REMOTE_STAND_AGENT_TOKEN")
         return 2
 
-    programmer, gpio, camera = build_hardware(args, config)
-    mode = "реальное железо" if args.real_hardware else "заглушки"
+    real_hardware = resolve_real_hardware(args, config)
+    camera_device = args.camera_device or config.camera_device
+    programmer, gpio, camera = build_hardware(real_hardware, camera_device, config)
+    mode = "реальное железо" if real_hardware else "заглушки"
     logger.info("[AGENT] Режим: %s, сервер %s", mode, config.server_url)
 
     worker = AgentWorker(

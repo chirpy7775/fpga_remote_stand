@@ -100,7 +100,7 @@ export default function FpgaPage() {
                   </div>
                 </button>
               ))}
-              {stands.length === 0 && <p className="text-gray-400 text-sm">Нет зарегистрированных стендов. Создайте агента: python manage.py create_agent stand-1</p>}
+              {stands.length === 0 && <p className="text-gray-400 text-sm">Нет стендов. Пропиши AGENT_TOKEN_stand-1 в server/.env и перезапусти сервер.</p>}
             </div>
           )}
           <div className="space-y-3">

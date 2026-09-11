@@ -4,6 +4,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+
+def env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 # Допустимый диапазон длительности записи видео (секунды).
 # Чтобы изменить границы — правьте только эти две константы.
 RECORD_DURATION_MIN: int = 1
@@ -17,6 +24,7 @@ LOG_FILE: str = "agent.log"
 LOG_MAX_BYTES: int = 10 * 1024 * 1024   # 10 МБ
 LOG_BACKUP_COUNT: int = 5
 
+
 @dataclass(slots=True)
 class AgentConfig:
     server_url: str
@@ -25,6 +33,8 @@ class AgentConfig:
     workspace: Path = Path("workspace")
     timeout_seconds: int = 300
     record_duration_sec: int = 15
+    camera_device: str = "/dev/video0"
+    real_hardware: bool = False
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
@@ -33,6 +43,7 @@ class AgentConfig:
         poll_interval = int(os.getenv("REMOTE_STAND_POLL_INTERVAL", "5"))
         workspace = Path(os.getenv("REMOTE_STAND_WORKSPACE", "workspace"))
         timeout_seconds = int(os.getenv("REMOTE_STAND_TIMEOUT_SECONDS", "300"))
+        camera_device = os.getenv("REMOTE_STAND_CAMERA_DEVICE", "/dev/video0")
 
         raw_duration = int(os.getenv("REMOTE_STAND_RECORD_DURATION_SECONDS", "15"))
         record_duration_sec = max(RECORD_DURATION_MIN, min(raw_duration, RECORD_DURATION_MAX))
@@ -44,4 +55,6 @@ class AgentConfig:
             workspace=workspace,
             timeout_seconds=timeout_seconds,
             record_duration_sec=record_duration_sec,
+            camera_device=camera_device,
+            real_hardware=env_flag("REMOTE_STAND_REAL_HARDWARE"),
         )
