@@ -15,8 +15,9 @@ class ServerError(Exception):
 
 
 class ServerClient:
-    def __init__(self, *, server_url: str, token: str = "") -> None:
+    def __init__(self, *, server_url: str, token: str = "", gpio_pins: tuple[int, ...] | None = None) -> None:
         self.server_url = server_url.rstrip("/")
+        self.gpio_pins = gpio_pins
         self.session = requests.Session()
         if token:
             self.session.headers.update({"Authorization": f"Token {token}"})
@@ -28,7 +29,11 @@ class ServerClient:
 
     def heartbeat(self) -> dict:
         try:
-            response = self.session.post(f"{self.server_url}/agent/api/heartbeat/", timeout=10)
+            response = self.session.post(
+                f"{self.server_url}/agent/api/heartbeat/",
+                json={"gpio_pins": list(self.gpio_pins)} if self.gpio_pins is not None else {},
+                timeout=10,
+            )
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as exc:

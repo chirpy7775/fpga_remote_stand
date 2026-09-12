@@ -13,11 +13,10 @@ from .api import (
     ReleaseSessionView,
     SessionFlashView,
     SessionPinView,
-    StandListView,
-    TakeStandView,
+    TestbedListView,
+    TakeTestbedView,
 )
 from .monitor import MonitorJobDetailView, MonitorOverviewView
-from .spa import HomeView
 from .views import (
     AgentFirmwareDownloadView,
     AgentHeartbeatView,
@@ -32,7 +31,6 @@ from .views import (
 app_name = "jobs"
 
 urlpatterns = [
-    path("", HomeView.as_view(), name="home"),
     path("agent/api/heartbeat/", AgentHeartbeatView.as_view(), name="agent-heartbeat"),
     path("agent/api/session/", AgentSessionView.as_view(), name="agent-session"),
     path(
@@ -54,8 +52,8 @@ urlpatterns = [
     path("api/auth/login/", LoginView.as_view(), name="api-login"),
     path("api/auth/logout/", LogoutView.as_view(), name="api-logout"),
     path("api/auth/register/", RegisterView.as_view(), name="api-register"),
-    path("api/stands/", StandListView.as_view(), name="api-stands"),
-    path("api/stands/<int:pk>/take/", TakeStandView.as_view(), name="api-take-stand"),
+    path("api/testbeds/", TestbedListView.as_view(), name="api-testbeds"),
+    path("api/testbeds/<int:pk>/take/", TakeTestbedView.as_view(), name="api-take-testbed"),
     path("api/session/", CurrentSessionView.as_view(), name="api-session"),
     path("api/session/release/", ReleaseSessionView.as_view(), name="api-session-release"),
     path("api/session/pin/", SessionPinView.as_view(), name="api-session-pin"),

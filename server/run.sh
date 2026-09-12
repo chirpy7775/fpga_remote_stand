@@ -13,11 +13,13 @@ if [[ ! -f .env ]]; then
 fi
 
 export PYTHONUNBUFFERED=1
+set -a
+source .env
+set +a
+
 .venv/bin/python manage.py migrate --noinput
-.venv/bin/python manage.py sync_agents
+: "${AGENT_NAME:?В server/.env не задан AGENT_NAME}"
+: "${AGENT_TOKEN:?В server/.env не задан AGENT_TOKEN}"
+.venv/bin/python manage.py create_agent "$AGENT_NAME" --token "$AGENT_TOKEN" >/dev/null
 
-read -r HOST PORT <<EOF
-$(.venv/bin/python -c "from remote_stand.env import load_env; import os; load_env(); print(os.getenv('HOST', '0.0.0.0').strip(), os.getenv('PORT', '8000').strip())")
-EOF
-
-exec .venv/bin/python manage.py runserver "${HOST}:${PORT}" --noreload
+exec .venv/bin/python manage.py runserver "${HOST:-0.0.0.0}:${PORT:-8000}" --noreload

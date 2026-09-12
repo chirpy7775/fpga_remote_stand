@@ -13,6 +13,7 @@ env/
 media/
 workspace/
 workspace-stand2/
+workspace-testbed2/
 
 *.swp
 *.tmp
@@ -20,8 +21,8 @@ workspace-stand2/
 .idea/
 
 node_modules/
-server/frontend/dist/
 agent.log
+agent/logs/
 server/logs/
 
 .run/
@@ -29,8 +30,9 @@ server/logs/
 .env
 server/.env
 agent/.env
+agent/fpga-agent.service
+server/fpga-server.service
 server/.setup_key
 server/examples/**/db/
 server/examples/**/incremental_db/
 server/examples/**/output_files/
-

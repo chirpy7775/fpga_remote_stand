@@ -13,4 +13,4 @@ if [[ ! -f .env ]]; then
 fi
 
 export PYTHONUNBUFFERED=1
-exec .venv/bin/python -m remote_agent "$@"
+exec .venv/bin/python -m remote_agent

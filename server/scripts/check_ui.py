@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import sys
+import os
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-FRONT = "http://127.0.0.1:5173"
+FRONT = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
 OUT = Path("/tmp/uicheck")
 
 

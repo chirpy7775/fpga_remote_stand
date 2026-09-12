@@ -6,7 +6,7 @@ from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 from .serializers import serialize_job, serialize_session
 from .services import SessionService
 
@@ -111,12 +111,12 @@ def _get_agent_by_token(token: str | None) -> Agent | None:
 
 
 @database_sync_to_async
-def _get_active_session_by_token(token: str | None) -> StandSession | None:
+def _get_active_session_by_token(token: str | None) -> TestbedSession | None:
     if not token:
         return None
     SessionService.expire_sessions()
     return (
-        StandSession.objects.filter(token=token, released_at__isnull=True)
+        TestbedSession.objects.filter(token=token, released_at__isnull=True)
         .select_related("agent")
         .first()
     )

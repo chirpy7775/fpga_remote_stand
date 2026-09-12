@@ -11,14 +11,42 @@ from remote_agent.hardware import (
     StubCamera,
     StubGpio,
 )
-from remote_agent.hardware_real import PIN_BCM, RealProgrammer, _MjpegPipe
+from remote_agent.config import AgentConfig
+from remote_agent.hardware_real import RealProgrammer, _MjpegPipe
 from remote_agent.lite_lang import InstructionError, parse_instruction
 
 # Часть проверок сверяет агента с серверной частью репозитория. На самом стенде
 # развёрнут только каталог agent/, поэтому такие тесты там пропускаются.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SERVER_CONSTANTS = REPO_ROOT / "server" / "jobs" / "constants.py"
-EXAMPLE_SCRIPT = REPO_ROOT / "server" / "examples" / "gpio_leds" / "gpio_leds.txt"
+EXAMPLE_SCRIPT = REPO_ROOT / "server" / "examples" / "de10_lite" / "gpio_test" / "gpio_test.txt"
+
+
+class LoggingTests(unittest.TestCase):
+    def test_file_log_survives_shutdown_and_rotates(self):
+        import logging
+        import os
+        from remote_agent.__main__ import main
+        from logging.handlers import RotatingFileHandler
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "logs" / "agent.log"
+            with unittest.mock.patch.dict(os.environ, {"LOG_FILE": str(path), "MODE": "invalid"}), \
+                    unittest.mock.patch("remote_agent.__main__.load_env"), \
+                    unittest.mock.patch("logging.basicConfig") as configure:
+                self.assertEqual(main(), 2)
+            handlers = configure.call_args.kwargs["handlers"]
+            handler = next(item for item in handlers if isinstance(item, RotatingFileHandler))
+            try:
+                self.assertEqual(handler.maxBytes, 5 * 1024 * 1024)
+                self.assertEqual(handler.backupCount, 3)
+                handler.emit(logging.LogRecord("agent", logging.INFO, "", 0, "x" * handler.maxBytes, (), None))
+                handler.emit(logging.LogRecord("agent", logging.INFO, "", 0, "after rotation", (), None))
+            finally:
+                for item in handlers:
+                    item.close()
+            self.assertIn("after rotation", path.read_text())
+            self.assertTrue(Path(str(path) + ".1").exists())
 
 
 class FakeProgrammer:
@@ -226,17 +254,28 @@ class StubGpioTests(unittest.TestCase):
 
 class PinMapTests(unittest.TestCase):
     @unittest.skipUnless(SERVER_CONSTANTS.exists(), "серверная часть репозитория недоступна")
-    def test_matches_server_pin_map(self):
-        """Карта пинов агента должна совпадать с server/jobs/constants.py."""
+    def test_server_has_no_second_bcm_config(self):
+        """BCM берётся только из конфига агента, не из серверных констант."""
         namespace: dict = {}
         source = SERVER_CONSTANTS.read_text(encoding="utf-8")
         exec(compile(source, str(SERVER_CONSTANTS), "exec"), namespace)
-        server_bcm = tuple(entry["rpi_bcm"] for entry in namespace["PIN_MAP"])
-        self.assertEqual(PIN_BCM, server_bcm)
+        self.assertEqual(len(namespace["PIN_MAP"]), 8)
+        self.assertTrue(all("rpi_bcm" not in entry for entry in namespace["PIN_MAP"]))
+
+    def test_custom_bcm_is_sent_in_heartbeat(self):
+        from remote_agent.api import ServerClient
+        pins = (2, 3, 4, 5, 6, 9, 10, 11)
+        client = ServerClient(server_url="http://test", token="secret", gpio_pins=pins)
+        with unittest.mock.patch.object(client.session, "post") as post:
+            post.return_value.json.return_value = {"status": "idle"}
+            client.heartbeat()
+        self.assertEqual(post.call_args.kwargs["json"], {"gpio_pins": list(pins)})
+        self.assertEqual(client.session.headers["Authorization"], "Token secret")
 
     def test_eight_unique_pins(self):
-        self.assertEqual(len(PIN_BCM), 8)
-        self.assertEqual(len(set(PIN_BCM)), 8)
+        pins = AgentConfig.from_env().gpio_pins
+        self.assertEqual(len(pins), 8)
+        self.assertEqual(len(set(pins)), 8)
 
 
 class ProgrammerResultTests(unittest.TestCase):
@@ -380,13 +419,14 @@ class SessionPinConvergenceTests(unittest.TestCase):
         gpio = CountingGpio()
         worker = self._worker(gpio)
         session = {"pin_states": [False] * 8, "commands": []}
-        worker._handle_session(session)
-        worker._handle_session(session)
+        with unittest.mock.patch.object(worker, "_ensure_stream"):
+            worker._handle_session(session)
+            worker._handle_session(session)
         self.assertEqual(gpio.engaged, 1, "на каждый опрос захватывать заново незачем")
         worker._end_session()
-        worker._handle_session(session)
+        with unittest.mock.patch.object(worker, "_ensure_stream"):
+            worker._handle_session(session)
         self.assertEqual(gpio.engaged, 2, "новая сессия — новый захват")
-        worker._stop_stream()
 
     def test_converges_after_restart(self):
         """Даже если агент не видел команд, он догоняет состояние сервера."""
@@ -491,32 +531,28 @@ class LiteLangAgentTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
-    def test_real_hardware_flag_from_env(self):
-        from argparse import Namespace
-
-        from remote_agent.config import AgentConfig
-        from remote_agent.__main__ import resolve_real_hardware
-
+    def test_hardware_config_from_env(self):
         with unittest.mock.patch.dict(
             "os.environ",
             {
-                "REMOTE_STAND_SERVER_URL": "http://10.0.0.1:8000/",
-                "REMOTE_STAND_AGENT_TOKEN": "tok",
-                "REMOTE_STAND_REAL_HARDWARE": "1",
-                "REMOTE_STAND_CAMERA_DEVICE": "/dev/video2",
+                "SERVER_URL": "http://10.0.0.1:8000/",
+                "AGENT_TOKEN": "tok",
+                "MODE": "hardware",
+                "CAMERA_DEVICE": "/dev/video2",
+                "GPIO_PINS": "2,3,4,5,6,7,8,9",
             },
-            clear=False,
+            clear=True,
         ):
             config = AgentConfig.from_env()
         self.assertEqual(config.server_url, "http://10.0.0.1:8000")
-        self.assertTrue(config.real_hardware)
+        self.assertEqual(config.mode, "hardware")
         self.assertEqual(config.camera_device, "/dev/video2")
-        self.assertTrue(
-            resolve_real_hardware(Namespace(real_hardware=False, stub_hardware=False), config)
-        )
-        self.assertFalse(
-            resolve_real_hardware(Namespace(real_hardware=False, stub_hardware=True), config)
-        )
+        self.assertEqual(config.gpio_pins, (2, 3, 4, 5, 6, 7, 8, 9))
+
+    def test_rejects_invalid_mode(self):
+        with unittest.mock.patch.dict("os.environ", {"MODE": "wrong"}, clear=True):
+            with self.assertRaises(ValueError):
+                AgentConfig.from_env()
 
 
 if __name__ == "__main__":

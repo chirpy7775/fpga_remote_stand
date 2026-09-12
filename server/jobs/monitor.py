@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.views import View
 
 from .guest import PUBLIC_OWNER_USERNAME
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 from .services import JobService, SessionService
 
 RECENT_JOBS_LIMIT = 50
@@ -45,7 +45,7 @@ def _job_row(request: HttpRequest, job: Job) -> dict:
         "is_guest": is_guest,
         "original_filename": job.original_filename,
         "instruction_filename": job.instruction_filename,
-        "stand": job.target_agent.name if job.target_agent else None,
+        "testbed": job.target_agent.name if job.target_agent else None,
         "claimed_by": job.claimed_by.name if job.claimed_by else None,
         "created_at": job.created_at.isoformat(),
         "started_at": job.started_at.isoformat() if job.started_at else None,
@@ -57,13 +57,13 @@ def _job_row(request: HttpRequest, job: Job) -> dict:
     }
 
 
-def _session_row(session: StandSession) -> dict:
+def _session_row(session: TestbedSession) -> dict:
     owner, is_guest = _owner_label(session)
     return {
         "id": str(session.id),
         "owner": owner,
         "is_guest": is_guest,
-        "stand": session.agent.name,
+        "testbed": session.agent.name,
         "started_at": session.started_at.isoformat(),
         "ends_at": session.ends_at.isoformat(),
         "remaining_seconds": max(0, int((session.ends_at - timezone.now()).total_seconds())),
@@ -83,7 +83,7 @@ class MonitorOverviewView(StaffOnlyMixin, View):
 
         agents = list(Agent.objects.all())
         sessions = list(
-            StandSession.objects.filter(released_at__isnull=True, ends_at__gt=timezone.now())
+            TestbedSession.objects.filter(released_at__isnull=True, ends_at__gt=timezone.now())
             .select_related("agent", "owner")
         )
         running = list(
@@ -98,11 +98,11 @@ class MonitorOverviewView(StaffOnlyMixin, View):
         session_by_agent = {session.agent_id: session for session in sessions}
         job_by_agent = {job.claimed_by_id: job for job in running}
 
-        stands = []
+        testbeds = []
         for agent in agents:
             session = session_by_agent.get(agent.id)
             job = job_by_agent.get(agent.id)
-            stands.append(
+            testbeds.append(
                 {
                     "id": agent.id,
                     "name": agent.name,
@@ -120,7 +120,7 @@ class MonitorOverviewView(StaffOnlyMixin, View):
             {
                 "generated_at": timezone.now().isoformat(),
                 "totals": {
-                    "stands": len(agents),
+                    "testbeds": len(agents),
                     "online": sum(1 for agent in agents if agent.is_online),
                     "active_sessions": len(sessions),
                     "running_jobs": len(running),
@@ -130,7 +130,7 @@ class MonitorOverviewView(StaffOnlyMixin, View):
                         created_at__gte=day_ago, status=Job.Status.ERROR
                     ).count(),
                 },
-                "stands": stands,
+                "testbeds": testbeds,
                 "sessions": [_session_row(session) for session in sessions],
                 "jobs": [_job_row(request, job) for job in recent],
             }

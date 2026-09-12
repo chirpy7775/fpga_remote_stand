@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.http import HttpRequest, JsonResponse
@@ -11,7 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import ensure_csrf_cookie
 
-from .constants import PIN_MAP, SESSION_DURATION_SECONDS
+from .constants import PIN_MAP
 from .guest import get_guest_job_ids, is_anon_enabled, jobs_for_request, owner_for_submit, set_guest_job_ids
 from .lite_lang import InstructionError
 from .models import Agent
@@ -87,21 +88,22 @@ class RegisterView(View):
         return JsonResponse({"user": user_payload(user)}, status=201)
 
 
-class StandListView(View):
+class TestbedListView(View):
     def get(self, request: HttpRequest) -> JsonResponse:
         if not request.user.is_authenticated and not is_anon_enabled():
             return json_error("Нужна авторизация.", 401)
         SessionService.expire_sessions()
         JobService.expire_timed_out_jobs()
         agents = Agent.objects.filter(is_active=True)
-        return JsonResponse({"stands": [serialize_agent(agent) for agent in agents]})
+        rows = [serialize_agent(agent) for agent in agents]
+        return JsonResponse({"testbeds": rows})
 
 
-class TakeStandView(ApiAuthMixin, View):
+class TakeTestbedView(ApiAuthMixin, View):
     def post(self, request: HttpRequest, pk: int) -> JsonResponse:
         agent = get_object_or_404(Agent, pk=pk, is_active=True)
         payload = _json_body(request)
-        duration = payload.get("duration_seconds") or SESSION_DURATION_SECONDS
+        duration = payload.get("duration_seconds") or settings.SESSION_DURATION_SECONDS
         try:
             duration = int(duration)
             session = SessionService.take(user=request.user, agent=agent, duration_seconds=duration)
@@ -206,7 +208,15 @@ class JobDetailApiView(View):
 
 class PinMapView(View):
     def get(self, request: HttpRequest) -> JsonResponse:
-        return JsonResponse({"pins": PIN_MAP})
+        agent_id = request.GET.get("agent_id")
+        if agent_id:
+            try:
+                agent_id = int(agent_id)
+            except ValueError:
+                return json_error("Некорректный agent_id.")
+            agent = get_object_or_404(Agent, pk=agent_id, is_active=True)
+            return JsonResponse({"pins": agent.pin_map})
+        return JsonResponse({"pins": [{**row, "rpi_bcm": None} for row in PIN_MAP]})
 
 
 def _json_body(request: HttpRequest) -> dict:

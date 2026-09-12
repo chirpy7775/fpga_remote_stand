@@ -3,7 +3,7 @@ import os
 from .env import load_env
 
 load_env()
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "remote_stand.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "remote_testbed.settings")
 
 from django.core.asgi import get_asgi_application
 

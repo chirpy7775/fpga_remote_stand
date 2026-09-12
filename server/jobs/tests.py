@@ -4,14 +4,12 @@ from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.management.base import CommandError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .agent_tokens import sync_agents_from_env
 from .lite_lang import InstructionError, PinCommand, WriteFrameCommand, parse_instruction
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 from .services import JobCompletion, JobService, SessionService
 
 
@@ -68,13 +66,51 @@ class AgentApiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="student", password="secret123")
         self.other_user = User.objects.create_user(username="other", password="secret123")
-        self.agent = Agent.objects.create(name="stand-1")
+        self.agent = Agent.objects.create(name="testbed-1")
         self.agent.touch()
-        self.other = Agent.objects.create(name="stand-2")
+        self.other = Agent.objects.create(name="testbed-2")
         self.other.touch()
 
     def _auth_headers(self, agent: Agent) -> dict:
         return {"HTTP_AUTHORIZATION": f"Token {agent.token}"}
+
+    def test_heartbeat_reports_independent_custom_pin_maps(self):
+        from .serializers import serialize_agent, serialize_session
+
+        for agent, pins in ((self.agent, [2, 3, 4, 5, 6, 9, 10, 11]),
+                            (self.other, [12, 13, 14, 15, 16, 17, 18, 19])):
+            response = self.client.post(reverse("jobs:agent-heartbeat"),
+                                        {"gpio_pins": pins}, content_type="application/json",
+                                        **self._auth_headers(agent))
+            self.assertEqual(response.status_code, 200)
+            agent.refresh_from_db()
+            self.assertEqual([row["rpi_bcm"] for row in serialize_agent(agent)["pin_map"]], pins)
+        session = SessionService.take(user=self.user, agent=self.agent, duration_seconds=120)
+        self.assertEqual([row["rpi_bcm"] for row in serialize_session(session)["pin_map"]],
+                         self.agent.gpio_pins)
+
+    def test_empty_heartbeat_preserves_reported_pins(self):
+        self.agent.gpio_pins = [2, 3, 4, 5, 6, 9, 10, 11]
+        self.agent.save()
+        response = self.client.post(reverse("jobs:agent-heartbeat"), **self._auth_headers(self.agent))
+        self.assertEqual(response.status_code, 200)
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.gpio_pins, [2, 3, 4, 5, 6, 9, 10, 11])
+
+    def test_heartbeat_rejects_bad_pins_without_changing_map(self):
+        for pins in ([2] * 8, [2, 3], [True, 3, 4, 5, 6, 9, 10, 11],
+                     [54, 3, 4, 5, 6, 9, 10, 11]):
+            response = self.client.post(reverse("jobs:agent-heartbeat"),
+                                        {"gpio_pins": pins}, content_type="application/json",
+                                        **self._auth_headers(self.agent))
+            self.assertEqual(response.status_code, 400)
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.gpio_pins, [])
+        self.assertTrue(all(row["rpi_bcm"] is None for row in self.agent.pin_map))
+
+    def test_testbed_url(self):
+        self.client.force_login(self.user)
+        self.assertIn("testbeds", self.client.get("/api/testbeds/").json())
 
     def test_claim_only_own_jobs(self):
         job = JobService.create_job(
@@ -191,7 +227,7 @@ class AgentApiTests(TestCase):
     def test_unauthenticated_session_blocked(self):
         self.assertEqual(self.client.get(reverse("jobs:api-session")).status_code, 401)
         self.assertEqual(
-            self.client.post(reverse("jobs:api-take-stand", kwargs={"pk": self.agent.id})).status_code,
+            self.client.post(reverse("jobs:api-take-testbed", kwargs={"pk": self.agent.id})).status_code,
             401,
         )
 
@@ -235,7 +271,7 @@ class AuthApiTests(TestCase):
 
 class GuestJobTests(TestCase):
     def setUp(self):
-        self.agent = Agent.objects.create(name="stand-1")
+        self.agent = Agent.objects.create(name="testbed-1")
         self.agent.touch()
 
     def test_guest_can_submit_and_list_own_jobs(self):
@@ -261,12 +297,12 @@ class GuestJobTests(TestCase):
         self.assertEqual(second.get(reverse("jobs:api-jobs")).json()["jobs"], [])
 
     def test_guest_cannot_take_session(self):
-        response = self.client.post(reverse("jobs:api-take-stand", kwargs={"pk": self.agent.id}))
+        response = self.client.post(reverse("jobs:api-take-testbed", kwargs={"pk": self.agent.id}))
         self.assertEqual(response.status_code, 401)
 
     @override_settings(ALLOW_ANON_JOB_SUBMISSION=False)
     def test_guest_blocked_when_disabled(self):
-        self.assertEqual(self.client.get(reverse("jobs:api-stands")).status_code, 401)
+        self.assertEqual(self.client.get(reverse("jobs:api-testbeds")).status_code, 401)
         self.assertEqual(self.client.get(reverse("jobs:api-jobs")).status_code, 401)
         created = self.client.post(
             reverse("jobs:api-jobs"),
@@ -279,9 +315,9 @@ class SessionLockTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="student", password="secret123")
         self.other_user = User.objects.create_user(username="other", password="secret123")
-        self.agent = Agent.objects.create(name="stand-1")
+        self.agent = Agent.objects.create(name="testbed-1")
         self.agent.touch()
-        self.other_agent = Agent.objects.create(name="stand-2")
+        self.other_agent = Agent.objects.create(name="testbed-2")
         self.other_agent.touch()
 
     def test_exclusive_lock(self):
@@ -295,7 +331,7 @@ class SessionLockTests(TestCase):
         with self.assertRaises(ValueError):
             SessionService.take(user=self.user, agent=self.other_agent, duration_seconds=120)
 
-    def test_offline_stand_rejected(self):
+    def test_offline_testbed_rejected(self):
         offline = Agent.objects.create(name="dead")
         with self.assertRaises(ValueError):
             SessionService.take(user=self.user, agent=offline, duration_seconds=120)
@@ -310,7 +346,7 @@ class SessionLockTests(TestCase):
 
     def test_heartbeat_and_session_poll(self):
         SessionService.take(user=self.user, agent=self.agent, duration_seconds=120)
-        SessionService.enqueue_pin(session=StandSession.objects.get(owner=self.user), pin=3, state="high")
+        SessionService.enqueue_pin(session=TestbedSession.objects.get(owner=self.user), pin=3, state="high")
         response = self.client.post(
             reverse("jobs:agent-heartbeat"),
             HTTP_AUTHORIZATION=f"Token {self.agent.token}",
@@ -333,7 +369,7 @@ class SessionLockTests(TestCase):
     def test_pin_and_flash_api(self):
         self.client.force_login(self.user)
         taken = self.client.post(
-            reverse("jobs:api-take-stand", kwargs={"pk": self.agent.id}),
+            reverse("jobs:api-take-testbed", kwargs={"pk": self.agent.id}),
             data={"duration_seconds": 180},
             content_type="application/json",
         )
@@ -382,43 +418,16 @@ class SessionLockTests(TestCase):
 
     def test_expired_session_is_released(self):
         session = SessionService.take(user=self.user, agent=self.agent, duration_seconds=120)
-        StandSession.objects.filter(pk=session.pk).update(ends_at=timezone.now() - timedelta(seconds=1))
+        TestbedSession.objects.filter(pk=session.pk).update(ends_at=timezone.now() - timedelta(seconds=1))
         self.assertEqual(SessionService.expire_sessions(), 1)
         self.assertIsNone(SessionService.active_for_user(self.user))
-
-
-class SyncAgentsTests(TestCase):
-    def test_creates_and_updates_from_env(self):
-        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-one"})
-        self.assertEqual(messages, ["создан stand-1"])
-        agent = Agent.objects.get(name="stand-1")
-        self.assertEqual(agent.token, "token-one")
-
-        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-two"})
-        self.assertEqual(messages, ["обновлён токен stand-1"])
-        agent.refresh_from_db()
-        self.assertEqual(agent.token, "token-two")
-
-        messages = sync_agents_from_env({"AGENT_TOKEN_stand-1": "token-two"})
-        self.assertEqual(messages, ["без изменений stand-1"])
-
-    def test_rejects_duplicate_tokens(self):
-        with self.assertRaises(CommandError):
-            sync_agents_from_env(
-                {"AGENT_TOKEN_stand-1": "same", "AGENT_TOKEN_stand-2": "same"}
-            )
-
-    def test_rejects_token_owned_by_another_agent(self):
-        Agent.objects.create(name="stand-1", token="taken")
-        with self.assertRaises(CommandError):
-            sync_agents_from_env({"AGENT_TOKEN_stand-2": "taken"})
 
 
 class MonitorApiTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="admin", password="pw12345", is_staff=True)
         self.student = User.objects.create_user(username="student", password="pw12345")
-        self.agent = Agent.objects.create(name="stand-1")
+        self.agent = Agent.objects.create(name="testbed-1")
         self.agent.touch()
 
     def test_requires_staff(self):
@@ -429,7 +438,7 @@ class MonitorApiTests(TestCase):
         self.client.force_login(self.staff)
         self.assertEqual(self.client.get(url).status_code, 200)
 
-    def test_overview_reports_who_uploads_and_who_holds_the_stand(self):
+    def test_overview_reports_who_uploads_and_who_holds_the_testbed(self):
         JobService.create_job(
             owner=self.student, firmware=svf("mine.svf"), instruction=txt(), target_agent=self.agent
         )
@@ -444,10 +453,10 @@ class MonitorApiTests(TestCase):
         self.assertEqual(payload["jobs"][0]["original_filename"], "mine.svf")
         self.assertIsNotNone(payload["jobs"][0]["firmware_url"])
 
-        stand = payload["stands"][0]
-        self.assertEqual(stand["name"], "stand-1")
-        self.assertEqual(stand["current_session"]["owner"], "student")
-        self.assertIsNone(stand["current_job"])
+        testbed = payload["testbeds"][0]
+        self.assertEqual(testbed["name"], "testbed-1")
+        self.assertEqual(testbed["current_session"]["owner"], "student")
+        self.assertIsNone(testbed["current_job"])
 
     def test_overview_marks_guest_uploads(self):
         self.client.post(
@@ -459,7 +468,7 @@ class MonitorApiTests(TestCase):
         self.assertTrue(job["is_guest"])
         self.assertEqual(job["owner"], "гость")
 
-    def test_overview_shows_running_job_on_the_stand(self):
+    def test_overview_shows_running_job_on_the_testbed(self):
         JobService.create_job(
             owner=self.student, firmware=svf(), instruction=txt(), target_agent=self.agent
         )
@@ -467,7 +476,7 @@ class MonitorApiTests(TestCase):
         self.client.force_login(self.staff)
         payload = self.client.get(reverse("jobs:api-monitor-overview")).json()
         self.assertEqual(payload["totals"]["running_jobs"], 1)
-        self.assertEqual(payload["stands"][0]["current_job"]["owner"], "student")
+        self.assertEqual(payload["testbeds"][0]["current_job"]["owner"], "student")
 
     def test_job_detail_returns_full_log(self):
         job = JobService.create_job(

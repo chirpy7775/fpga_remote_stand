@@ -12,9 +12,9 @@ from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.utils import timezone
 
-from .constants import PIN_COUNT, SESSION_DURATION_SECONDS
+from .constants import PIN_COUNT
 from .lite_lang import InstructionError, parse_instruction
-from .models import Agent, Job, StandSession, default_pin_states
+from .models import Agent, Job, TestbedSession, default_pin_states
 from .realtime import broadcast_job, broadcast_session
 
 logger = logging.getLogger("jobs")
@@ -212,7 +212,7 @@ class SessionService:
     @staticmethod
     def expire_sessions() -> int:
         now = timezone.now()
-        expired = StandSession.objects.filter(released_at__isnull=True, ends_at__lte=now)
+        expired = TestbedSession.objects.filter(released_at__isnull=True, ends_at__lte=now)
         count = 0
         for session in expired:
             session.released_at = now
@@ -224,17 +224,17 @@ class SessionService:
     @staticmethod
     def agent_has_active_session(agent: Agent) -> bool:
         SessionService.expire_sessions()
-        return StandSession.objects.filter(
+        return TestbedSession.objects.filter(
             agent=agent,
             released_at__isnull=True,
             ends_at__gt=timezone.now(),
         ).exists()
 
     @staticmethod
-    def active_for_agent(agent: Agent) -> StandSession | None:
+    def active_for_agent(agent: Agent) -> TestbedSession | None:
         SessionService.expire_sessions()
         return (
-            StandSession.objects.filter(
+            TestbedSession.objects.filter(
                 agent=agent,
                 released_at__isnull=True,
                 ends_at__gt=timezone.now(),
@@ -244,10 +244,10 @@ class SessionService:
         )
 
     @staticmethod
-    def active_for_user(user: User) -> StandSession | None:
+    def active_for_user(user: User) -> TestbedSession | None:
         SessionService.expire_sessions()
         return (
-            StandSession.objects.filter(
+            TestbedSession.objects.filter(
                 owner=user,
                 released_at__isnull=True,
                 ends_at__gt=timezone.now(),
@@ -257,7 +257,7 @@ class SessionService:
         )
 
     @staticmethod
-    def take(*, user: User, agent: Agent, duration_seconds: int | None = None) -> StandSession:
+    def take(*, user: User, agent: Agent, duration_seconds: int | None = None) -> TestbedSession:
         SessionService.expire_sessions()
         JobService.expire_timed_out_jobs()
 
@@ -271,10 +271,10 @@ class SessionService:
         if existing is not None:
             raise ValueError("У вас уже есть активная сессия.")
 
-        seconds = duration_seconds or SESSION_DURATION_SECONDS
+        seconds = duration_seconds or settings.SESSION_DURATION_SECONDS
         seconds = max(60, min(seconds, 60 * 60))
         now = timezone.now()
-        session = StandSession.objects.create(
+        session = TestbedSession.objects.create(
             agent=agent,
             owner=user,
             started_at=now,
@@ -287,7 +287,7 @@ class SessionService:
         return session
 
     @staticmethod
-    def release(session: StandSession) -> StandSession:
+    def release(session: TestbedSession) -> TestbedSession:
         if session.released_at is None:
             session.released_at = timezone.now()
             session.save(update_fields=["released_at", "updated_at"])
@@ -295,7 +295,7 @@ class SessionService:
         return session
 
     @staticmethod
-    def enqueue_pin(*, session: StandSession, pin: int, state: str) -> StandSession:
+    def enqueue_pin(*, session: TestbedSession, pin: int, state: str) -> TestbedSession:
         if not session.is_active:
             raise ValueError("Сессия неактивна.")
         if pin < 1 or pin > PIN_COUNT:
@@ -315,7 +315,7 @@ class SessionService:
         return session
 
     @staticmethod
-    def enqueue_flash(*, session: StandSession, flash: UploadedFile) -> StandSession:
+    def enqueue_flash(*, session: TestbedSession, flash: UploadedFile) -> TestbedSession:
         if not session.is_active:
             raise ValueError("Сессия неактивна.")
         _require_svf(flash.name)
@@ -329,7 +329,7 @@ class SessionService:
         return session
 
     @staticmethod
-    def consume_commands(session: StandSession) -> tuple[list[dict], bool]:
+    def consume_commands(session: TestbedSession) -> tuple[list[dict], bool]:
         commands = list(session.pending_commands or [])
         has_flash = session.pending_flash and any(cmd.get("kind") == "flash" for cmd in commands)
         session.pending_commands = []

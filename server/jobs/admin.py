@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 
 
 @admin.register(Agent)
@@ -28,8 +28,8 @@ class JobAdmin(admin.ModelAdmin):
     readonly_fields = ("id", "created_at", "updated_at", "started_at", "finished_at")
 
 
-@admin.register(StandSession)
-class StandSessionAdmin(admin.ModelAdmin):
+@admin.register(TestbedSession)
+class TestbedSessionAdmin(admin.ModelAdmin):
     list_display = ("id", "agent", "owner", "started_at", "ends_at", "released_at")
     list_filter = ("agent",)
     readonly_fields = ("token", "created_at", "updated_at")

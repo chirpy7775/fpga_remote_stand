@@ -16,10 +16,6 @@ except ImportError:  # не Raspberry Pi — RealGpio просто нельзя 
 
 logger = logging.getLogger(__name__)
 
-# Логический пин стенда 1..8 → BCM-номер на Raspberry Pi.
-# Должен совпадать с PIN_MAP в server/jobs/constants.py.
-PIN_BCM: tuple[int, ...] = (21, 20, 16, 12, 1, 7, 8, 25)
-
 # Камера отдаёт MJPG 640x480@30 — снимаем как есть, без перекодирования.
 CAPTURE_WIDTH = 640
 CAPTURE_HEIGHT = 480
@@ -85,15 +81,16 @@ class RealGpio:
     платой вверх и выглядел бы как high.
     """
 
-    def __init__(self, chip: int = 0) -> None:
+    def __init__(self, chip: int = 0, pins: tuple[int, ...] = (21, 20, 16, 12, 1, 7, 8, 25)) -> None:
         self._chip = chip
+        self._pins_bcm = pins
         self._handle: int | None = None
         self._driven: set[int] = set()
         self._states = [False] * PIN_COUNT
 
     def engage(self) -> None:
         handle = self._open()
-        for bcm in PIN_BCM:
+        for bcm in self._pins_bcm:
             if bcm not in self._driven:
                 lgpio.gpio_claim_output(handle, bcm, 0)
                 self._driven.add(bcm)
@@ -105,7 +102,7 @@ class RealGpio:
     def set_pin(self, pin: int, high: bool) -> str:
         if pin < 1 or pin > PIN_COUNT:
             raise ValueError(f"Пин {pin} вне диапазона 1..{PIN_COUNT}")
-        bcm = PIN_BCM[pin - 1]
+        bcm = self._pins_bcm[pin - 1]
         handle = self._open()
         if bcm not in self._driven:
             lgpio.gpio_claim_output(handle, bcm, 0)
@@ -410,4 +407,4 @@ def _transcode_to_h264(raw_path: Path, video_path: Path) -> list[str]:
     return log + ["Не удалось перекодировать видео."]
 
 
-__all__ = ["PIN_BCM", "RealCamera", "RealGpio", "RealProgrammer"]
+__all__ = ["RealCamera", "RealGpio", "RealProgrammer"]

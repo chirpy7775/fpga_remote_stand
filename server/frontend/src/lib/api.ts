@@ -5,12 +5,20 @@ export type User = {
   is_staff: boolean;
 };
 
-export type Stand = {
+export type Testbed = {
   id: number;
   name: string;
   status: "offline" | "idle" | "busy";
   online: boolean;
   last_seen_at: string | null;
+  pin_map: PinMapping[];
+};
+
+export type PinMapping = {
+  index: number;
+  rpi_bcm: number | null;
+  de10_gpio: number;
+  fpga: string;
 };
 
 export type Job = {
@@ -19,7 +27,7 @@ export type Job = {
   status_display: string;
   original_filename: string;
   instruction_filename: string;
-  target_agent: Stand | null;
+  target_agent: Testbed | null;
   claimed_by: string | null;
   queue_position: number | null;
   created_at: string | null;
@@ -34,13 +42,14 @@ export type Job = {
 export type Session = {
   id: string;
   token: string;
-  agent: Stand;
+  agent: Testbed;
   active: boolean;
   started_at: string;
   ends_at: string;
   remaining_seconds: number;
   pin_states: boolean[];
   pending_flash_name: string;
+  pin_map: PinMapping[];
 };
 
 export type MonitorJob = {
@@ -51,7 +60,7 @@ export type MonitorJob = {
   is_guest: boolean;
   original_filename: string;
   instruction_filename: string;
-  stand: string | null;
+  testbed: string | null;
   claimed_by: string | null;
   created_at: string;
   started_at: string | null;
@@ -67,7 +76,7 @@ export type MonitorSession = {
   id: string;
   owner: string;
   is_guest: boolean;
-  stand: string;
+  testbed: string;
   started_at: string;
   ends_at: string;
   remaining_seconds: number;
@@ -75,7 +84,7 @@ export type MonitorSession = {
   pending_flash_name: string;
 };
 
-export type MonitorStand = {
+export type MonitorTestbed = {
   id: number;
   name: string;
   status: "offline" | "idle" | "busy";
@@ -89,7 +98,7 @@ export type MonitorStand = {
 export type MonitorOverview = {
   generated_at: string;
   totals: {
-    stands: number;
+    testbeds: number;
     online: number;
     active_sessions: number;
     running_jobs: number;
@@ -97,7 +106,7 @@ export type MonitorOverview = {
     jobs_last_day: number;
     errors_last_day: number;
   };
-  stands: MonitorStand[];
+  testbeds: MonitorTestbed[];
   sessions: MonitorSession[];
   jobs: MonitorJob[];
 };
@@ -145,15 +154,14 @@ export const api = {
       body: JSON.stringify({ username, password, email }),
     }),
   logout: () => request<{ detail: string }>("/api/auth/logout/", { method: "POST" }),
-  stands: () => request<{ stands: Stand[] }>("/api/stands/"),
+  testbeds: () => request<{ testbeds: Testbed[] }>("/api/testbeds/"),
   jobs: () => request<{ jobs: Job[] }>("/api/jobs/"),
   job: (id: string) => request<{ job: Job }>(`/api/jobs/${id}/`),
   createJob: (form: FormData) => request<{ job: Job }>("/api/jobs/", { method: "POST", body: form }),
   session: () => request<{ session: Session | null }>("/api/session/"),
-  takeStand: (id: number, durationSeconds = 900) =>
-    request<{ session: Session }>(`/api/stands/${id}/take/`, {
+  takeTestbed: (id: number) =>
+    request<{ session: Session }>(`/api/testbeds/${id}/take/`, {
       method: "POST",
-      body: JSON.stringify({ duration_seconds: durationSeconds }),
     }),
   releaseSession: () => request<{ session: Session }>("/api/session/release/", { method: "POST" }),
   setPin: (pin: number, state: "high" | "low") =>

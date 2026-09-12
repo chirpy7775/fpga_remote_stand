@@ -2,12 +2,12 @@
 import os
 import sys
 
-from remote_stand.env import load_env
+from remote_testbed.env import load_env
 
 
 def main() -> None:
     load_env()
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "remote_stand.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "remote_testbed.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

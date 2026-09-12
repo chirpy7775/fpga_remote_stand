@@ -1,59 +1,30 @@
 from __future__ import annotations
 
-import argparse
 import logging
+import os
 import shutil
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from .api import ServerClient
-from .config import AgentConfig, LOG_BACKUP_COUNT, LOG_FILE, LOG_MAX_BYTES
+from .config import AgentConfig
 from .env import load_env
 from .hardware import Camera, GpioDriver, HardwareExecutor, Programmer, ProgrammerStub, StubCamera, StubGpio
 from .hardware_real import RealCamera, RealGpio, RealProgrammer
-from .logging_setup import setup_logging
 from .worker import AgentWorker
 
 logger = logging.getLogger(__name__)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Агент удалённого стенда FPGA")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--stub-hardware",
-        action="store_true",
-        help="программатор, GPIO и камера — заглушки",
-    )
-    mode.add_argument(
-        "--real-hardware",
-        action="store_true",
-        help="реальное железо: OpenOCD, lgpio, камера V4L2; иначе берётся REMOTE_STAND_REAL_HARDWARE из .env",
-    )
-    parser.add_argument(
-        "--camera-device",
-        default=None,
-        help="устройство камеры для --real-hardware (по умолчанию из .env или /dev/video0)",
-    )
-    return parser
-
-
-def resolve_real_hardware(args, config: AgentConfig) -> bool:
-    if args.real_hardware:
-        return True
-    if args.stub_hardware:
-        return False
-    return config.real_hardware
-
-
-def build_hardware(real_hardware: bool, camera_device: str, config: AgentConfig) -> tuple[Programmer, GpioDriver, Camera]:
-    if not real_hardware:
+def build_hardware(config: AgentConfig) -> tuple[Programmer, GpioDriver, Camera]:
+    if config.mode == "simulation":
         return ProgrammerStub(), StubGpio(), StubCamera()
 
-    _check_real_prerequisites(camera_device)
+    _check_real_prerequisites(config.camera_device)
     return (
-        RealProgrammer(),
-        RealGpio(),
-        RealCamera(device=camera_device, workspace=config.workspace),
+        RealProgrammer(config_path=config.openocd_config, openocd_cmd=config.openocd_command),
+        RealGpio(chip=config.gpio_chip, pins=config.gpio_pins),
+        RealCamera(device=config.camera_device, workspace=config.workspace),
     )
 
 
@@ -72,23 +43,31 @@ def _check_real_prerequisites(camera_device: str) -> None:
 
 def main() -> int:
     load_env()
-    setup_logging(log_file=LOG_FILE, max_bytes=LOG_MAX_BYTES, backup_count=LOG_BACKUP_COUNT)
+    log_path = Path(os.getenv("LOG_FILE", "logs/agent.log"))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        handlers=[logging.StreamHandler(), RotatingFileHandler(
+            log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8",
+        )],
+    )
 
-    args = build_parser().parse_args()
-    config = AgentConfig.from_env()
+    try:
+        config = AgentConfig.from_env()
+    except (TypeError, ValueError) as exc:
+        logger.error("[AGENT] Ошибка в .env: %s", exc)
+        return 2
     if not config.token:
-        logger.error("[AGENT] Не задан REMOTE_STAND_AGENT_TOKEN")
+        logger.error("[AGENT] Не задан AGENT_TOKEN")
         return 2
 
-    real_hardware = resolve_real_hardware(args, config)
-    camera_device = args.camera_device or config.camera_device
-    programmer, gpio, camera = build_hardware(real_hardware, camera_device, config)
-    mode = "реальное железо" if real_hardware else "заглушки"
-    logger.info("[AGENT] Режим: %s, сервер %s", mode, config.server_url)
+    programmer, gpio, camera = build_hardware(config)
+    logger.info("[AGENT] Режим: %s, сервер %s", config.mode, config.server_url)
 
     worker = AgentWorker(
         config=config,
-        client=ServerClient(server_url=config.server_url, token=config.token),
+        client=ServerClient(server_url=config.server_url, token=config.token, gpio_pins=config.gpio_pins),
         executor=HardwareExecutor(programmer=programmer, camera=camera, gpio=gpio),
         gpio=gpio,
         camera=camera,

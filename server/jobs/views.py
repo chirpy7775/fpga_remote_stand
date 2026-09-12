@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 
 from django.http import FileResponse, HttpRequest, JsonResponse
@@ -9,7 +10,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 from .serializers import serialize_agent_job
 from .services import JobCompletion, JobService, SessionService
 
@@ -115,6 +116,19 @@ class AgentHeartbeatView(AgentAuthMixin, View):
     def post(self, request: HttpRequest) -> JsonResponse:
         SessionService.expire_sessions()
         JobService.expire_timed_out_jobs()
+        try:
+            payload = json.loads(request.body) if request.body and request.content_type == "application/json" else {}
+            pins = payload.get("gpio_pins")
+        except (ValueError, AttributeError):
+            return JsonResponse({"detail": "Invalid heartbeat JSON."}, status=400)
+        if pins is not None:
+            if (not isinstance(pins, list) or len(pins) != 8
+                    or any(type(pin) is not int or not 0 <= pin <= 53 for pin in pins)
+                    or len(set(pins)) != 8):
+                return JsonResponse({"detail": "GPIO_PINS must contain eight distinct BCM numbers (0–53)."}, status=400)
+            if pins != self.agent.gpio_pins:
+                self.agent.gpio_pins = pins
+                self.agent.save(update_fields=["gpio_pins"])
         self.agent.touch()
         session = SessionService.active_for_agent(self.agent)
         return JsonResponse(
@@ -158,7 +172,7 @@ class AgentSessionFlashView(AgentAuthMixin, View):
 
     def get(self, request: HttpRequest, session_id) -> FileResponse:
         session = get_object_or_404(
-            StandSession.objects.filter(agent=self.agent),
+            TestbedSession.objects.filter(agent=self.agent),
             pk=session_id,
         )
         if not session.pending_flash:

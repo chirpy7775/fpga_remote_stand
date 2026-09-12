@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from .constants import PIN_MAP
-from .models import Agent, Job, StandSession
+from .models import Agent, Job, TestbedSession
 
 
 def _media_url(request, field) -> str | None:
@@ -22,6 +21,7 @@ def serialize_agent(agent: Agent) -> dict:
         "status": agent.computed_status(),
         "online": agent.is_online,
         "last_seen_at": agent.last_seen_at.isoformat() if agent.last_seen_at else None,
+        "pin_map": agent.pin_map,
     }
 
 
@@ -45,7 +45,7 @@ def serialize_job(job: Job, request=None) -> dict:
     }
 
 
-def serialize_session(session: StandSession, request=None) -> dict:
+def serialize_session(session: TestbedSession, request=None) -> dict:
     remaining = max(0, int((session.ends_at - timezone.now()).total_seconds())) if session.is_active else 0
     return {
         "id": str(session.id),
@@ -57,7 +57,7 @@ def serialize_session(session: StandSession, request=None) -> dict:
         "remaining_seconds": remaining,
         "pin_states": list(session.pin_states or [False] * 8),
         "pending_flash_name": session.pending_flash_name,
-        "pin_map": PIN_MAP,
+        "pin_map": session.agent.pin_map,
     }
 
 

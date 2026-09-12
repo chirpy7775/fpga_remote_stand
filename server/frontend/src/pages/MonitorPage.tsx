@@ -10,7 +10,7 @@ const STATUS_STYLE: Record<string, string> = {
   error: "bg-red-100 text-red-700",
 };
 
-const STAND_STYLE: Record<string, string> = {
+const TESTBED_STYLE: Record<string, string> = {
   offline: "bg-gray-100 text-gray-500",
   idle: "bg-green-100 text-green-700",
   busy: "bg-primary-100 text-primary-700",
@@ -99,41 +99,41 @@ export default function MonitorPage() {
         <Card label="В очереди" value={totals.waiting_jobs} />
         <Card label="Заявок за сутки" value={totals.jobs_last_day} />
         <Card label="Ошибок за сутки" value={totals.errors_last_day} accent />
-        <Card label="Стендов всего" value={totals.stands} />
+        <Card label="Стендов всего" value={totals.testbeds} />
       </div>
 
       <section className="bg-white rounded-2xl border border-muted shadow-sm overflow-hidden">
         <h2 className="px-6 py-3 border-b border-muted font-semibold text-primary-700">Стенды</h2>
         <div className="divide-y divide-muted">
-          {data.stands.map((stand) => (
-            <div key={stand.id} className="px-6 py-4 space-y-1">
+          {data.testbeds.map((testbed) => (
+            <div key={testbed.id} className="px-6 py-4 space-y-1">
               <div className="flex items-center gap-3">
-                <span className="font-semibold">{stand.name}</span>
-                <Badge text={stand.status} styles={STAND_STYLE} />
-                {!stand.is_active && <span className="text-xs text-gray-400">отключён</span>}
+                <span className="font-semibold">{testbed.name}</span>
+                <Badge text={testbed.status} styles={TESTBED_STYLE} />
+                {!testbed.is_active && <span className="text-xs text-gray-400">отключён</span>}
                 <span className="text-xs text-gray-400 ml-auto">
-                  heartbeat {moment(stand.last_seen_at)}
+                  heartbeat {moment(testbed.last_seen_at)}
                 </span>
               </div>
-              {stand.current_session && (
+              {testbed.current_session && (
                 <div className="text-sm text-gray-600">
-                  Занял <strong>{stand.current_session.owner}</strong>, осталось{" "}
-                  {clock(stand.current_session.remaining_seconds)}, пины{" "}
-                  {stand.current_session.pin_states.map((on) => (on ? "1" : "0")).join("")}
+                  Занял <strong>{testbed.current_session.owner}</strong>, осталось{" "}
+                  {clock(testbed.current_session.remaining_seconds)}, пины{" "}
+                  {testbed.current_session.pin_states.map((on) => (on ? "1" : "0")).join("")}
                 </div>
               )}
-              {stand.current_job && (
+              {testbed.current_job && (
                 <div className="text-sm text-gray-600">
-                  Выполняет <strong>{stand.current_job.original_filename}</strong> от{" "}
-                  {stand.current_job.owner}
+                  Выполняет <strong>{testbed.current_job.original_filename}</strong> от{" "}
+                  {testbed.current_job.owner}
                 </div>
               )}
-              {!stand.current_session && !stand.current_job && (
+              {!testbed.current_session && !testbed.current_job && (
                 <div className="text-sm text-gray-400">Свободен</div>
               )}
             </div>
           ))}
-          {data.stands.length === 0 && <div className="px-6 py-4 text-gray-400">Стендов нет.</div>}
+          {data.testbeds.length === 0 && <div className="px-6 py-4 text-gray-400">Стендов нет.</div>}
         </div>
       </section>
 
@@ -179,7 +179,7 @@ export default function MonitorPage() {
                       "—"
                     )}
                   </td>
-                  <td className="px-4 py-2">{job.stand ?? "—"}</td>
+                  <td className="px-4 py-2">{job.testbed ?? "—"}</td>
                   <td className="px-4 py-2">
                     <Badge text={job.status} styles={STATUS_STYLE} />
                     {job.error_message && (
@@ -226,7 +226,7 @@ export default function MonitorPage() {
               <div>
                 <div className="font-semibold text-primary-700">{openJob.original_filename}</div>
                 <div className="text-xs text-gray-500">
-                  {openJob.owner} · {openJob.stand ?? "без стенда"} · {openJob.status_display}
+                  {openJob.owner} · {openJob.testbed ?? "без стенда"} · {openJob.status_display}
                 </div>
               </div>
               <button onClick={() => setOpenJob(null)} className="text-gray-400 hover:text-gray-700">

@@ -5,11 +5,12 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
-from .constants import HEARTBEAT_TTL_SECONDS, PIN_COUNT
+from .constants import PIN_COUNT, PIN_MAP
 
 
 def generate_agent_token() -> str:
@@ -34,7 +35,7 @@ def result_video_upload_to(instance: "Job", filename: str) -> str:
     return f"results/{instance.id}{suffix}"
 
 
-def session_flash_upload_to(instance: "StandSession", filename: str) -> str:
+def session_flash_upload_to(instance: "TestbedSession", filename: str) -> str:
     suffix = Path(filename).suffix or ".svf"
     return f"session_flash/{instance.id}{suffix}"
 
@@ -56,12 +57,20 @@ class Agent(TimeStampedModel):
     token = models.CharField(max_length=64, unique=True, default=generate_agent_token, editable=False)
     is_active = models.BooleanField(default=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
+    gpio_pins = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ("name",)
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def pin_map(self) -> list[dict]:
+        return [
+            {**row, "rpi_bcm": self.gpio_pins[i] if len(self.gpio_pins) == PIN_COUNT else None}
+            for i, row in enumerate(PIN_MAP)
+        ]
 
     def touch(self) -> None:
         self.last_seen_at = timezone.now()
@@ -71,7 +80,7 @@ class Agent(TimeStampedModel):
     def is_online(self) -> bool:
         if not self.is_active or self.last_seen_at is None:
             return False
-        return timezone.now() - self.last_seen_at <= timedelta(seconds=HEARTBEAT_TTL_SECONDS)
+        return timezone.now() - self.last_seen_at <= timedelta(seconds=settings.HEARTBEAT_TTL_SECONDS)
 
     def computed_status(self) -> str:
         if not self.is_online:
@@ -141,10 +150,10 @@ class Job(TimeStampedModel):
         return bool(self.deadline_at and self.deadline_at < timezone.now())
 
 
-class StandSession(TimeStampedModel):
+class TestbedSession(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, related_name="sessions")
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="stand_sessions")
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="testbed_sessions")
     token = models.CharField(max_length=64, unique=True, default=generate_session_token, editable=False)
     started_at = models.DateTimeField(default=timezone.now)
     ends_at = models.DateTimeField()

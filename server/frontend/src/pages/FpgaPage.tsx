@@ -2,12 +2,12 @@ import { Clock, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { api, type Session, type Stand } from "../lib/api";
+import { api, type Session, type Testbed } from "../lib/api";
 
 export default function FpgaPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [stands, setStands] = useState<Stand[]>([]);
+  const [testbeds, setTestbeds] = useState<Testbed[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [svf, setSvf] = useState<File | null>(null);
   const [txt, setTxt] = useState<File | null>(null);
@@ -17,11 +17,11 @@ export default function FpgaPage() {
   const [loading, setLoading] = useState(true);
 
   const reload = async () => {
-    const [standsResp, sessionResp] = await Promise.all([
-      api.stands(),
+    const [testbedsResp, sessionResp] = await Promise.all([
+      api.testbeds(),
       user ? api.session() : Promise.resolve({ session: null }),
     ]);
-    setStands(standsResp.stands);
+    setTestbeds(testbedsResp.testbeds);
     setSession(sessionResp.session);
     setLoading(false);
   };
@@ -33,7 +33,7 @@ export default function FpgaPage() {
       setLoading(false);
     });
     const timer = setInterval(() => {
-      api.stands().then((data) => setStands(data.stands)).catch(() => undefined);
+      api.testbeds().then((data) => setTestbeds(data.testbeds)).catch(() => undefined);
     }, 4000);
     return () => clearInterval(timer);
   }, [user]);
@@ -56,9 +56,9 @@ export default function FpgaPage() {
     }
   };
 
-  const takeStand = async (stand: Stand) => {
+  const takeTestbed = async (testbed: Testbed) => {
     try {
-      const data = await api.takeStand(stand.id);
+      const data = await api.takeTestbed(testbed.id);
       localStorage.setItem("session_token", data.session.token);
       navigate("/fpga/session");
     } catch (err) {
@@ -86,21 +86,21 @@ export default function FpgaPage() {
             <p className="text-gray-400 text-sm">Загрузка стендов...</p>
           ) : (
             <div className="grid gap-3">
-              {stands.map((stand) => (
+              {testbeds.map((testbed) => (
                 <button
-                  key={stand.id}
-                  onClick={() => setSelected(stand.id)}
+                  key={testbed.id}
+                  onClick={() => setSelected(testbed.id)}
                   className={`w-full border rounded-lg p-3 text-left transition ${
-                    selected === stand.id ? "bg-primary-100 border-primary-500 text-primary-700 font-bold" : "hover:bg-muted"
+                    selected === testbed.id ? "bg-primary-100 border-primary-500 text-primary-700 font-bold" : "hover:bg-muted"
                   }`}
                 >
                   <div className="flex justify-between">
-                    <span>{stand.name}</span>
-                    <span className="text-xs uppercase tracking-wide">{stand.status}</span>
+                    <span>{testbed.name}</span>
+                    <span className="text-xs uppercase tracking-wide">{testbed.status}</span>
                   </div>
                 </button>
               ))}
-              {stands.length === 0 && <p className="text-gray-400 text-sm">Нет стендов. Пропиши AGENT_TOKEN_stand-1 в server/.env и перезапусти сервер.</p>}
+              {testbeds.length === 0 && <p className="text-gray-400 text-sm">Нет зарегистрированных стендов.</p>}
             </div>
           )}
           <div className="space-y-3">
@@ -135,15 +135,15 @@ export default function FpgaPage() {
             </div>
           ) : user ? (
             <div className="space-y-3">
-              <p className="text-sm text-gray-500">Займите свободный онлайн-стенд на 15 минут.</p>
-              {stands.map((stand) => (
+              <p className="text-sm text-gray-500">Займите свободный онлайн-стенд.</p>
+              {testbeds.map((testbed) => (
                 <button
-                  key={stand.id}
-                  disabled={stand.status !== "idle"}
-                  onClick={() => takeStand(stand)}
+                  key={testbed.id}
+                  disabled={testbed.status !== "idle"}
+                  onClick={() => takeTestbed(testbed)}
                   className="w-full border rounded-lg p-3 text-left disabled:opacity-50 hover:bg-primary-50"
                 >
-                  {stand.name} — {stand.status}
+                  {testbed.name} — {testbed.status}
                 </button>
               ))}
             </div>

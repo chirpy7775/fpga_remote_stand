@@ -3,9 +3,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
+INSTALL_SERVICE=1
+
+if [[ ${1:-} == "--no-service" ]]; then
+  INSTALL_SERVICE=0
+elif [[ $# -ne 0 ]]; then
+  echo "Использование: ./install.sh [--no-service]" >&2
+  exit 2
+fi
 
 python3 -m venv .venv
-.venv/bin/pip install -U pip
 .venv/bin/pip install -r requirements.txt
 
 if [[ ! -f frontend/dist/index.html ]]; then
@@ -14,48 +21,55 @@ if [[ ! -f frontend/dist/index.html ]]; then
     echo "Или положи уже собранный frontend/dist/ и запусти install.sh снова." >&2
     exit 1
   fi
-  (cd frontend && npm install && npm run build)
+  (cd frontend && npm ci && npm run build)
 fi
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
-  echo "Создан $ROOT/.env — пропиши свой AGENT_TOKEN_stand-1=..."
+  SECRET=$(.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(48))")
+  TOKEN=$(.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))")
+  sed -i "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$SECRET|" .env
+  sed -i "s|^AGENT_TOKEN=.*|AGENT_TOKEN=$TOKEN|" .env
+  chmod 600 .env
 fi
 
-.venv/bin/python manage.py migrate --noinput
-.venv/bin/python manage.py sync_agents
+set -a
+source .env
+set +a
+: "${DJANGO_SECRET_KEY:?В server/.env не задан DJANGO_SECRET_KEY}"
+: "${AGENT_NAME:?В server/.env не задан AGENT_NAME}"
+: "${AGENT_TOKEN:?В server/.env не задан AGENT_TOKEN}"
 
-USER_NAME="$(id -un)"
-cat > fpga-server.service <<EOF
+.venv/bin/python manage.py migrate --noinput
+.venv/bin/python manage.py create_agent "$AGENT_NAME" --token "$AGENT_TOKEN"
+
+if [[ $INSTALL_SERVICE -eq 1 ]]; then
+  USER_NAME="${SUDO_USER:-$(id -un)}"
+  cat > fpga-server.service <<EOF
 [Unit]
-Description=FPGA remote stand server
+Description=FPGA remote testbed server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=${USER_NAME}
-WorkingDirectory=${ROOT}
-ExecStart=${ROOT}/run.sh
+WorkingDirectory="${ROOT}"
+ExecStart="${ROOT}/run.sh"
 Restart=always
 RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
+  SUDO=()
+  [[ $(id -u) -eq 0 ]] || SUDO=(sudo)
+  "${SUDO[@]}" install -m 0644 fpga-server.service /etc/systemd/system/fpga-server.service
+  "${SUDO[@]}" systemctl daemon-reload
+  "${SUDO[@]}" systemctl enable --now fpga-server
+fi
 
-chmod +x run.sh install.sh
-
-echo
-echo "Сервер готов."
-echo "  Конфиг:  $ROOT/.env"
-echo "  Запуск:  $ROOT/run.sh"
-echo "  Браузер: http://<ip-этой-машины>:8000"
-echo
-echo "Автозапуск (по желанию):"
-echo "  sudo cp $ROOT/fpga-server.service /etc/systemd/system/"
-echo "  sudo systemctl daemon-reload"
-echo "  sudo systemctl enable --now fpga-server"
-echo "Убрать автозапуск:"
-echo "  sudo systemctl disable --now fpga-server"
-echo "  sudo rm /etc/systemd/system/fpga-server.service"
+echo "Сервер готов: http://<ip-этой-машины>:${PORT:-8000}"
+echo "Конфиг: $ROOT/.env"
+echo "Токен агента: $AGENT_TOKEN"
+[[ $INSTALL_SERVICE -eq 1 ]] || echo "Запуск: $ROOT/run.sh"

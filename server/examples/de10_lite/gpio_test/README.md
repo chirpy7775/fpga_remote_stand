@@ -1,4 +1,4 @@
-# GPIO → LED, Terasic DE10-Lite (чип 10M50DAF484C7G)
+# GPIO test, Terasic DE10-Lite (чип 10M50DAF484C7G)
 
 Пины сверены с User Manual (GPIO JP1, LEDR) и официальным `DE10_Lite.qsf`.
 Линии с малины — **только входы**, FPGA их не драйвит. 3.3 V LVTTL, как на разъёме JP1.
@@ -15,7 +15,7 @@
 
 `de10_gpio` в коде стенда — это **GPIO_[n]**, не номер контакта на гребенке. Контакт **29 на JP1 = 3.3 V**, его малине не сажать.
 
-| Стенд | BCM Pi | GPIO_[n] | Контакт JP1 | FPGA |
+| GPIO | BCM Pi по умолчанию | GPIO_[n] | Контакт JP1 | FPGA |
 |---|---|---|---|---|
 | 1 | 21 | 19 | 22 | `PIN_W11` |
 | 2 | 20 | 21 | 24 | `PIN_AA10` |
@@ -38,4 +38,9 @@
 quartus_cpf -c --operation=BP --voltage=3.3 --freq=10MHz output_files\gpio_led_test.sof gpio_led_test.svf
 ```
 
-После заливки LEDR9 мигает без Pi. Дальше пины 1–8 в UI → LEDR0–7. Все eight high → ещё LEDR8. Скрипт: `gpio_leds.txt`.
+После заливки LEDR9 мигает без Pi. Дальше пины 1–8 в UI → LEDR0–7. Если
+включить все восемь, загорится ещё LEDR8. Сценарий: `gpio_test.txt`.
+
+BCM в таблице соответствуют стандартному `GPIO_PINS` из `agent/.env`. Если
+на агенте указана другая распиновка, подключать нужно по его фактическому
+`GPIO_PINS`; веб-интерфейс показывает переданное агентом значение.

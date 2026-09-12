@@ -14,7 +14,7 @@ import websocket
 
 BASE = "http://127.0.0.1:8000"
 OUT = Path("/tmp/synccheck")
-STAND_ID = 1
+TESTBED_ID = 1
 
 
 def login(username: str, password: str) -> requests.Session:
@@ -61,7 +61,7 @@ def main() -> int:
     client = login("admin", "admin123")
 
     taken = client.post(
-        f"{BASE}/api/stands/{STAND_ID}/take/",
+        f"{BASE}/api/testbeds/{TESTBED_ID}/take/",
         json={"duration_seconds": 300},
         headers=csrf(client),
         timeout=10,
@@ -113,7 +113,8 @@ def main() -> int:
         state = client.get(f"{BASE}/api/session/", timeout=10).json()["session"]
         print("пины по мнению сервера:", state["pin_states"])
 
-        svf = Path(__file__).resolve().parents[1] / "examples" / "gpio_led_test.svf"
+        svf = (Path(__file__).resolve().parents[1] / "examples" / "de10_lite"
+               / "gpio_test" / "gpio_led_test.svf")
         with svf.open("rb") as handle:
             flashed = client.post(
                 f"{BASE}/api/session/flash/",

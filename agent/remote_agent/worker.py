@@ -122,7 +122,7 @@ class AgentWorker:
         if self._streamer is not None:
             return
         url = f"{self.client.ws_base()}/ws/camera/exporter/?token={self.token}"
-        self._streamer = CameraStreamer(url=url, gpio=self.gpio, camera=self.camera)
+        self._streamer = CameraStreamer(url=url, gpio=self.gpio, camera=self.camera, fps=self.config.stream_fps)
         self._streamer.start()
 
     def _stop_stream(self) -> None:

@@ -1,15 +1,28 @@
-const PIN_ROWS = [
-  [1, 21, 19, "PIN_W11"],
-  [2, 20, 21, "PIN_AA10"],
-  [3, 16, 23, "PIN_Y8"],
-  [4, 12, 25, "PIN_Y7"],
-  [5, 1, 27, "PIN_Y6"],
-  [6, 7, 29, "PIN_Y5"],
-  [7, 8, 31, "PIN_Y4"],
-  [8, 25, 33, "PIN_Y3"],
-];
+import { useEffect, useState } from "react";
+import { api, type Testbed } from "../lib/api";
 
 export default function FpgaDocPage() {
+  const [testbeds, setTestbeds] = useState<Testbed[]>([]);
+  const [selected, setSelected] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    const reload = async () => {
+      try {
+        const data = await api.testbeds();
+        if (cancelled) return;
+        setTestbeds(data.testbeds);
+        setSelected((prev) => prev || String(data.testbeds[0]?.id ?? ""));
+        setError("");
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Ошибка загрузки распиновки");
+      }
+    };
+    reload();
+    const timer = setInterval(reload, 4000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+  const testbed = testbeds.find((item) => String(item.id) === selected);
   return (
     <div className="bg-white rounded-2xl shadow-md border border-muted overflow-hidden">
       <div className="bg-primary-50 px-6 py-3 border-b border-primary-100">
@@ -35,6 +48,14 @@ write_frame 10`}</pre>
         </section>
         <section>
           <h2 className="text-xl font-semibold text-primary-700">Пины Raspberry Pi ↔ DE10-Lite</h2>
+          <label className="block">
+            Стенд (testbed):{" "}
+            <select value={selected} onChange={(event) => setSelected(event.target.value)}>
+              {testbeds.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.status}</option>)}
+            </select>
+          </label>
+          {error && <p role="alert">{error}</p>}
+          <p>BCM сообщает выбранный агент из GPIO_PINS. «Не сообщён» означает, что агент ещё не передал конфиг. Для офлайн-стенда показан последний полученный конфиг.</p>
           <p>
             Колонка «GPIO DE10» — это индекс <code>GPIO_[n]</code> на JP1, не номер штыря.
             GPIO_19 сидит на контакте 22. Контакт 29 на гребенке — это 3.3&nbsp;V, его к малине не сажать. 5&nbsp;V (контакт 11) тоже нет.
@@ -49,11 +70,11 @@ write_frame 10`}</pre>
               </tr>
             </thead>
             <tbody>
-              {PIN_ROWS.map(([index, rpi, de10, fpga]) => (
+              {(testbed?.pin_map ?? []).map(({ index, rpi_bcm, de10_gpio, fpga }) => (
                 <tr key={index}>
                   <td className="p-2 border">{index}</td>
-                  <td className="p-2 border">{rpi}</td>
-                  <td className="p-2 border">{de10}</td>
+                  <td className="p-2 border">{rpi_bcm ?? "Не сообщён"}</td>
+                  <td className="p-2 border">{de10_gpio}</td>
                   <td className="p-2 border">{fpga}</td>
                 </tr>
               ))}

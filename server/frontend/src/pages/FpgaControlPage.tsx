@@ -142,6 +142,9 @@ export default function FpgaControlPage() {
                 className={`py-4 px-6 rounded-xl font-bold text-lg ${isActive ? "bg-green-500 text-white" : "bg-gray-200 text-gray-700"}`}
               >
                 Пин {index + 1}
+                <span className="block text-xs font-normal">
+                  BCM {session?.pin_map[index]?.rpi_bcm ?? "не сообщён"}
+                </span>
               </button>
             ))}
           </div>
