@@ -23,6 +23,21 @@ CAPTURE_FPS = 30
 
 _OPENOCD_SUCCESS = "programmed successfully"
 
+
+def _comment_frequency_commands(src: Path, dest: Path) -> int:
+    """Quartus пишет FREQUENCY 10 MHz, а драйвер USB-Blaster в OpenOCD это не умеет."""
+    skipped = 0
+    with src.open("r", encoding="utf-8", errors="replace") as inf, dest.open(
+        "w", encoding="utf-8"
+    ) as outf:
+        for line in inf:
+            if line.lstrip().upper().startswith("FREQUENCY"):
+                outf.write("! " + line)
+                skipped += 1
+            else:
+                outf.write(line)
+    return skipped
+
 # Сколько символов ffmpeg-шума пускаем в лог задачи.
 STDERR_LOG_LIMIT = 4000
 
@@ -42,20 +57,30 @@ class RealProgrammer:
         if not self.config_path.exists():
             return ProgramResult(False, [f"Конфиг OpenOCD не найден: {self.config_path}"])
 
+        prepared = firmware_path.with_name(firmware_path.stem + ".openocd.svf")
+        skipped = _comment_frequency_commands(firmware_path, prepared)
         command = [
             self.openocd_cmd,
             "-f", str(self.config_path),
             "-c", "init",
-            "-c", f"svf {firmware_path}",
+            "-c", f"svf {prepared} -ignore_error",
             "-c", "shutdown",
         ]
         log = [f"Запуск: {' '.join(command)}"]
+        if skipped:
+            log.append(
+                f"FREQUENCY из SVF пропущен ({skipped}): USB-Blaster не умеет "
+                "менять скорость из файла, скорость берётся из max10.cfg."
+            )
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=180)
         except FileNotFoundError:
+            prepared.unlink(missing_ok=True)
             return ProgramResult(False, log + ["OpenOCD не установлен."])
         except subprocess.TimeoutExpired:
+            prepared.unlink(missing_ok=True)
             return ProgramResult(False, log + ["OpenOCD не ответил за 180 с."])
+        prepared.unlink(missing_ok=True)
 
         output = f"{result.stdout}\n{result.stderr}".strip()
         log.append(output)

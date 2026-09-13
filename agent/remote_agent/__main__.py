@@ -20,12 +20,43 @@ def build_hardware(config: AgentConfig) -> tuple[Programmer, GpioDriver, Camera]
     if config.mode == "simulation":
         return ProgrammerStub(), StubGpio(), StubCamera()
 
-    _check_real_prerequisites(config.camera_device)
+    camera_device = resolve_camera_device(config.camera_device)
+    if camera_device != config.camera_device:
+        logger.warning(
+            "[AGENT] CAMERA_DEVICE=%s не подходит, беру %s",
+            config.camera_device,
+            camera_device,
+        )
+    _check_real_prerequisites(camera_device)
     return (
         RealProgrammer(config_path=config.openocd_config, openocd_cmd=config.openocd_command),
         RealGpio(chip=config.gpio_chip, pins=config.gpio_pins),
-        RealCamera(device=config.camera_device, workspace=config.workspace),
+        RealCamera(device=camera_device, workspace=config.workspace),
     )
+
+
+def resolve_camera_device(preferred: str) -> str:
+    """USB-камера часто даёт videoN и videoN+1; нужен узел index=0 с MJPEG."""
+    preferred_path = Path(preferred)
+    capture: list[Path] = []
+    for node in sorted(Path("/sys/class/video4linux").glob("video*")):
+        try:
+            name = (node / "name").read_text(encoding="utf-8", errors="replace").lower()
+            index = int((node / "index").read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        if index != 0:
+            continue
+        if any(token in name for token in ("bcm2835", "codec", "isp", "pisp")):
+            continue
+        device = Path("/dev") / node.name
+        if device.exists():
+            capture.append(device)
+    if preferred_path in capture:
+        return str(preferred_path)
+    if capture:
+        return str(sorted(capture, key=lambda path: int(path.name[5:]))[0])
+    return preferred
 
 
 def _check_real_prerequisites(camera_device: str) -> None:

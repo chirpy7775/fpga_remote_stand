@@ -290,6 +290,33 @@ class ProgrammerResultTests(unittest.TestCase):
             result = RealProgrammer(config_path=Path(tmp) / "nope.cfg").program(firmware)
             self.assertFalse(result.ok)
 
+    def test_frequency_line_is_commented_for_usb_blaster(self):
+        import subprocess
+
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = root / "max10.cfg"
+            cfg.write_text("# dummy\n")
+            firmware = root / "a.svf"
+            firmware.write_text("FREQUENCY 1.00E+07 HZ;\nSIR 10 TDI (2CC);\n")
+            captured: dict[str, str] = {}
+
+            def fake_run(command, **_kwargs):
+                svf_arg = next(part for part in command if str(part).startswith("svf "))
+                sent = Path(str(svf_arg).split(" ", 1)[1].split(" ", 1)[0])
+                captured["svf"] = sent.read_text(encoding="utf-8")
+                self.assertIn("-ignore_error", svf_arg)
+                return subprocess.CompletedProcess(command, 0, "programmed successfully\n", "")
+
+            original = firmware.read_text(encoding="utf-8")
+            with unittest.mock.patch("subprocess.run", side_effect=fake_run):
+                result = RealProgrammer(config_path=cfg).program(firmware)
+
+        self.assertTrue(result.ok)
+        self.assertTrue(original.startswith("FREQUENCY"))
+        self.assertIn("! FREQUENCY 1.00E+07 HZ;", captured["svf"])
+        self.assertIn("SIR 10 TDI (2CC);", captured["svf"])
+
 
 class MjpegPipeTests(unittest.TestCase):
     """Разбор JPEG-потока: публикуем только целые кадры."""

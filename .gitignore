@@ -11,9 +11,7 @@ env/
 
 *.sqlite3
 media/
-workspace/
-workspace-stand2/
-workspace-testbed2/
+workspace*/
 
 *.swp
 *.tmp
